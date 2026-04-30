@@ -39,6 +39,18 @@ export const auth = betterAuth({
     },
   },
 
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (userData) => {
+          if ((userData as any).role === "TUTOR") {
+            return { data: { ...userData, status: "PENDING" } };
+          }
+        },
+      },
+    },
+  },
+
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
