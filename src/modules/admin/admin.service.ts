@@ -220,14 +220,37 @@ const createTutor = async (userData: { name: string; email: string }, profileDat
 const deleteUser = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
+    include: { tutorProfile: { select: { id: true } } },
   });
 
   if (!user) {
     throw new Error("User not found");
   }
 
-  return await prisma.user.delete({
-    where: { id: userId },
+  return await prisma.$transaction(async (tx) => {
+    // If the user is a tutor, clean up their profile and all related records
+    if (user.tutorProfile) {
+      const tutorId = user.tutorProfile.id;
+      await tx.review.deleteMany({ where: { tutorId } });
+      await tx.booking.deleteMany({ where: { tutorId } });
+      await tx.availability.deleteMany({ where: { tutorId } });
+      await tx.tutorCategory.deleteMany({ where: { tutorId } });
+      await tx.tutorProfile.delete({ where: { id: tutorId } });
+    }
+
+    // Clean up student-side bookings and their reviews
+    const studentBookings = await tx.booking.findMany({
+      where: { studentId: userId },
+      select: { id: true },
+    });
+    if (studentBookings.length > 0) {
+      const bookingIds = studentBookings.map((b) => b.id);
+      await tx.review.deleteMany({ where: { bookingId: { in: bookingIds } } });
+      await tx.booking.deleteMany({ where: { studentId: userId } });
+    }
+
+    // Session and Account cascade automatically via schema onDelete: Cascade
+    return await tx.user.delete({ where: { id: userId } });
   });
 };
 
