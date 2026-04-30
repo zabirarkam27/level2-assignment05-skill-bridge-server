@@ -104,9 +104,33 @@ const updateBookingStatus = async (req: Request, res: Response) => {
   }
 };
 
+const completeBooking = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const bookingId = Array.isArray(id) ? id[0] : id;
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    if (!bookingId || !userId || !role) {
+      throw new Error("Unauthorized or invalid request");
+    }
+
+    const result = await BookingService.updateBookingStatus(bookingId, userId, role, "COMPLETED");
+
+    res.status(200).json({
+      success: true,
+      message: "Session marked as completed",
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const BookingController = {
   createBooking,
   getUserBookings,
   getSingleBooking,
   updateBookingStatus,
+  completeBooking,
 };

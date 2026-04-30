@@ -6,5 +6,6 @@ const router = Router();
 
 router.get("/me", auth(), UserController.getCurrentUser);
 router.put("/me", auth(), UserController.updateProfile);
+router.put("/profile", auth(), UserController.updateProfile);
 
 export const userRouter = router;
