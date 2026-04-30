@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { TutorService } from "./tutor.service";
+import { TutorService, TutorFilters } from "./tutor.service";
 import { ReviewService } from "../reviews/review.service";
 import { AvailabilityService } from "../availability/availability.service";
 
@@ -69,12 +69,19 @@ const updateTutor = async (req: Request, res: Response) => {
 };
 
 const getAllTutors = async (req: Request, res: Response) => {
-  const result = await TutorService.getAllTutors();
-
-  res.status(200).json({
-    success: true,
-    data: result,
-  });
+  try {
+    const { search, minPrice, maxPrice, minRating, categoryId } = req.query;
+    const filters: TutorFilters = {};
+    if (search) filters.search = search as string;
+    if (minPrice) filters.minPrice = Number(minPrice);
+    if (maxPrice) filters.maxPrice = Number(maxPrice);
+    if (minRating) filters.minRating = Number(minRating);
+    if (categoryId) filters.categoryId = categoryId as string;
+    const result = await TutorService.getAllTutors(filters);
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
 };
 
 const getSingleTutor = async (req: Request, res: Response) => {
