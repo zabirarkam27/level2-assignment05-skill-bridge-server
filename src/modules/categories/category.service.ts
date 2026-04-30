@@ -13,8 +13,6 @@ export interface UpdateCategoryPayload {
 }
 
 const createCategory = async (payload: CreateCategoryPayload) => {
-console.log(" Payload: ", payload)
-
   return prisma.category.create({
     data: payload,
   });
