@@ -22,9 +22,16 @@ const createTutor = async (userId: string, payload: any) => {
 };
 
 const updateTutor = async (userId: string, payload: any) => {
-  const result = await prisma.tutorProfile.update({
+  const data = {
+    bio: payload.bio,
+    subjects: payload.subjects,
+    price: payload.price,
+  };
+
+  const result = await prisma.tutorProfile.upsert({
     where: { userId },
-    data: payload,
+    update: data,
+    create: { userId, ...data },
   });
 
   return result;
@@ -41,15 +48,38 @@ const getTutorProfileByUserId = async (userId: string) => {
   });
 };
 
-const getAllTutors = async () => {
+export interface TutorFilters {
+  search?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  minRating?: number;
+  categoryId?: string;
+}
+
+const getAllTutors = async (filters: TutorFilters = {}) => {
+  const { search, minPrice, maxPrice, minRating, categoryId } = filters;
+
   return await prisma.tutorProfile.findMany({
+    where: {
+      ...(search && {
+        OR: [
+          { subjects: { hasSome: [search] } },
+          { bio: { contains: search, mode: "insensitive" } },
+          { user: { name: { contains: search, mode: "insensitive" } } },
+        ],
+      }),
+      ...(minPrice !== undefined && { price: { gte: minPrice } }),
+      ...(maxPrice !== undefined && { price: { lte: maxPrice } }),
+      ...(minRating !== undefined && { rating: { gte: minRating } }),
+      ...(categoryId && {
+        categories: { some: { categoryId } },
+      }),
+    },
     include: {
       user: true,
       reviews: true,
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { rating: "desc" },
   });
 };
 
