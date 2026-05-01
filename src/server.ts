@@ -1,4 +1,5 @@
 import app from "./app";
+import "./routes";
 import { prisma } from "./lib/prisma";
 import "dotenv/config";
 
