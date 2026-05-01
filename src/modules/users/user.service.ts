@@ -46,7 +46,7 @@ const updateProfile = async (userId: string, payload: UpdateProfilePayload) => {
     where: { id: userId },
     data: {
       ...(payload.name !== undefined && { name: payload.name }),
-      ...(payload.image !== undefined && { image: payload.image }),
+      ...(payload.image !== undefined && { image: payload.image ?? null }),
     },
     select: {
       id: true,

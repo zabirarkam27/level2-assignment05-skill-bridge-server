@@ -4,10 +4,18 @@ import { BookingController } from "./booking.controller";
 
 const router: Router = express.Router();
 
-router.post("/", auth(UserRole.STUDENT), BookingController.createBooking);
+router.post(
+  "/",
+  auth(UserRole.STUDENT, UserRole.TUTOR, UserRole.ADMIN),
+  BookingController.createBooking,
+);
 router.get("/", auth(), BookingController.getUserBookings);
 router.get("/:id", auth(), BookingController.getSingleBooking);
 router.patch("/:id/status", auth(), BookingController.updateBookingStatus);
-router.patch("/:id/complete", auth(UserRole.TUTOR), BookingController.completeBooking);
+router.patch(
+  "/:id/complete",
+  auth(UserRole.TUTOR),
+  BookingController.completeBooking,
+);
 
 export const bookingRouter = router;

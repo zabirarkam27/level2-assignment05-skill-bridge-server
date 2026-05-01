@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import { UserStatus } from "@prisma/client";
+import { hashPassword } from "better-auth/crypto";
 
 const getAllUsers = async () => {
   return await prisma.user.findMany({
@@ -196,14 +197,31 @@ const makeTutor = async (userId: string, profileData: { bio: string; subjects: s
 };
 
 const createTutor = async (userData: { name: string; email: string }, profileData: { bio: string; subjects: string[]; price: number }) => {
-  const generatedPassword = Math.random().toString(36).slice(-10);
-  
+  const generatedPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-4).toUpperCase();
+  const hashedPassword = await hashPassword(generatedPassword);
+
   return await prisma.$transaction(async (tx) => {
+    const existing = await tx.user.findUnique({ where: { email: userData.email } });
+    if (existing) throw new Error("A user with this email already exists");
+
     const user = await tx.user.create({
       data: {
         ...userData,
         role: "TUTOR",
+        status: UserStatus.ACTIVE,
         emailVerified: true,
+      },
+    });
+
+    await tx.account.create({
+      data: {
+        id: crypto.randomUUID(),
+        accountId: user.id,
+        providerId: "credential",
+        userId: user.id,
+        password: hashedPassword,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
 

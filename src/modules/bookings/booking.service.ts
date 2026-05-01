@@ -10,6 +10,10 @@ const createBooking = async (studentId: string, payload: CreateBookingPayload) =
     throw new Error("Tutor not found");
   }
 
+  if (tutor.userId === studentId) {
+    throw new Error("You cannot book your own session");
+  }
+
   const bookingDate = new Date(payload.dateTime);
   if (bookingDate <= new Date()) {
     throw new Error("Booking date must be in the future");
