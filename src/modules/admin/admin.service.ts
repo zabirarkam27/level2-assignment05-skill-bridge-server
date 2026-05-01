@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { UserStatus } from "@prisma/client";
 
 const getAllUsers = async () => {
   return await prisma.user.findMany({
@@ -217,6 +218,49 @@ const createTutor = async (userData: { name: string; email: string }, profileDat
   });
 };
 
+const getPendingTutors = async () => {
+  return await prisma.user.findMany({
+    where: { role: "TUTOR", status: UserStatus.PENDING },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      createdAt: true,
+      status: true,
+      tutorProfile: {
+        select: { id: true, bio: true, subjects: true, price: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+};
+
+const approveTutor = async (userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("User not found");
+  if (user.role !== "TUTOR") throw new Error("User is not a tutor");
+  if (user.status !== UserStatus.PENDING) throw new Error("User is not pending approval");
+
+  return await prisma.user.update({
+    where: { id: userId },
+    data: { status: UserStatus.ACTIVE },
+    select: { id: true, name: true, email: true, role: true, status: true },
+  });
+};
+
+const rejectTutor = async (userId: string) => {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("User not found");
+  if (user.role !== "TUTOR") throw new Error("User is not a tutor");
+  if (user.status !== UserStatus.PENDING) throw new Error("User is not pending approval");
+
+  return await prisma.user.update({
+    where: { id: userId },
+    data: { status: UserStatus.REJECTED },
+    select: { id: true, name: true, email: true, role: true, status: true },
+  });
+};
+
 const deleteUser = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -263,4 +307,7 @@ export const AdminService = {
   makeTutor,
   createTutor,
   deleteUser,
+  getPendingTutors,
+  approveTutor,
+  rejectTutor,
 };

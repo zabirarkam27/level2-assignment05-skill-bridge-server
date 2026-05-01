@@ -12,5 +12,8 @@ router.delete("/users/:id", auth(UserRole.ADMIN), AdminController.deleteUser);
 router.post("/users/:id/make-mentor", auth(UserRole.ADMIN), AdminController.makeTutor);
 router.post("/users/create-mentor", auth(UserRole.ADMIN), AdminController.createTutor);
 router.get("/bookings", auth(UserRole.ADMIN), AdminController.getAllBookings);
+router.get("/tutors/pending", auth(UserRole.ADMIN), AdminController.getPendingTutors);
+router.patch("/tutors/:id/approve", auth(UserRole.ADMIN), AdminController.approveTutor);
+router.patch("/tutors/:id/reject", auth(UserRole.ADMIN), AdminController.rejectTutor);
 
 export const adminRouter = router;

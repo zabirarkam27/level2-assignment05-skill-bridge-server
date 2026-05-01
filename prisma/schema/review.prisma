@@ -1,15 +1,15 @@
-model Review{
+model Review {
   id        String                       @id @default(uuid())
   bookingId String                       @unique
   studentId String
-  tutorId   String       @map("tutorId")
+  tutorId   String
   rating    Int
   comment   String
   createdAt DateTime                     @default(now())
   updatedAt DateTime                     @updatedAt
 
-  booking   Booking      @relation(fields: [bookingId], references: [id])
-  tutor     TutorProfile @relation(fields: [tutorId], references: [id])
+  booking   Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  tutor     TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
 
   @@index([studentId])
   @@index([tutorId])

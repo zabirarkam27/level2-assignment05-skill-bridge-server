@@ -1,29 +1,27 @@
-model User{
-  id                String         @id @default(uuid())
-  name              String
-  email             String
-  emailVerified     Boolean        @default(false)
-  image             String?
-  role              ROLE           @default(STUDENT)
-  status            UserStatus     @default(ACTIVE)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  emailVerified Boolean        @default(false)
+  image         String?
+  phone         String?
+  role          ROLE           @default(STUDENT)
+  status        UserStatus     @default(ACTIVE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  tutorProfile      TutorProfile?
+  tutorProfile    TutorProfile?
   bookingsAsStudent Booking[]     @relation("StudentBookings")
-  sessions          Session[]
-  accounts          Account[]
+  sessions        Session[]
+  accounts        Account[]
 
-  @@unique([email])
   @@map("user")
-  @@index([role])
-  @@index([status])
 }
 
 model Session {
   id        String    @id
   expiresAt DateTime
-  token     String
+  token     String    @unique
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   ipAddress String?
@@ -31,7 +29,6 @@ model Session {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([token])
   @@index([userId])
   @@map("session")
 }

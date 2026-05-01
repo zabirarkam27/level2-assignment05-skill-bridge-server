@@ -1,4 +1,4 @@
-model Category{
+model Category {
   id          String           @id @default(uuid())
   name        String           @unique
   description String?
@@ -9,12 +9,12 @@ model Category{
   updatedAt   DateTime         @updatedAt
 }
 
-model TutorCategory{
+model TutorCategory {
   tutorId      String
   categoryId   String
 
-  tutorProfile TutorProfile @relation(fields: [tutorId], references: [id])
-  Category     Category     @relation(fields: [categoryId], references: [id])
+  tutorProfile TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  Category     Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([tutorId, categoryId])
   @@index([categoryId])

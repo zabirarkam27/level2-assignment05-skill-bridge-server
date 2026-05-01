@@ -42,6 +42,28 @@ const auth = (...roles: UserRole[]) => {
         });
       }
 
+      const status = (session.user as any).status;
+      if (status === "PENDING") {
+        return res.status(403).json({
+          success: false,
+          message: "Your account is pending admin approval. You will be notified once approved.",
+        });
+      }
+
+      if (status === "REJECTED") {
+        return res.status(403).json({
+          success: false,
+          message: "Your tutor application has been rejected. Please contact support for more information.",
+        });
+      }
+
+      if (status === "BANNED") {
+        return res.status(403).json({
+          success: false,
+          message: "Your account has been suspended. Please contact support.",
+        });
+      }
+
       req.user = {
         id: session.user.id,
         email: session.user.email,

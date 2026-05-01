@@ -123,6 +123,35 @@ const createTutor = async (req: Request, res: Response) => {
   }
 };
 
+const getPendingTutors = async (req: Request, res: Response) => {
+  try {
+    const result = await AdminService.getPendingTutors();
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const approveTutor = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await AdminService.approveTutor(id as string);
+    res.status(200).json({ success: true, message: "Tutor approved successfully", data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const rejectTutor = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await AdminService.rejectTutor(id as string);
+    res.status(200).json({ success: true, message: "Tutor application rejected", data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -149,4 +178,7 @@ export const AdminController = {
   makeTutor,
   createTutor,
   deleteUser,
+  getPendingTutors,
+  approveTutor,
+  rejectTutor,
 };
