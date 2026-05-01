@@ -4,21 +4,33 @@ import { prisma } from "./prisma";
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false,
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: process.env.SMTP_SECURE === "true",
   auth: {
-    user: process.env.APP_USER,
-    pass: process.env.APP_PASSWORD,
+    user: process.env.SMTP_USER || process.env.APP_USER,
+    pass: process.env.SMTP_PASS || process.env.APP_PASSWORD,
   },
 });
 
+const betterAuthURL = process.env.BETTER_AUTH_URL;
+const appURL = process.env.APP_URL;
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const betterAuthSecret = process.env.BETTER_AUTH_SECRET;
+
+if (!betterAuthURL) throw new Error("BETTER_AUTH_URL environment variable is required");
+if (!appURL) throw new Error("APP_URL environment variable is required");
+if (!googleClientId) throw new Error("GOOGLE_CLIENT_ID environment variable is required");
+if (!googleClientSecret) throw new Error("GOOGLE_CLIENT_SECRET environment variable is required");
+if (!betterAuthSecret) throw new Error("BETTER_AUTH_SECRET environment variable is required");
+
 export const auth = betterAuth({
-  baseURL: process.env.BETTER_AUTH_URL!,
+  baseURL: betterAuthURL,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-  trustedOrigins: [process.env.APP_URL!, process.env.BETTER_AUTH_URL!],
+  trustedOrigins: [appURL, betterAuthURL],
 
   user: {
     additionalFields: {
@@ -240,10 +252,10 @@ export const auth = betterAuth({
     google: {
       prompt: "select_account consent",
       accessType: "offline",
-      clientId: process.env.GOOGLE_CLIENT_ID! as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET! as string,
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
     },
   },
-  secret: process.env.BETTER_AUTH_SECRET!,
+  secret: betterAuthSecret,
 });
 

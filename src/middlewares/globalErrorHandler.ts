@@ -78,7 +78,7 @@ function errorHandler(
   res.status(statusCode);
   res.json({
     message: errorMessage,
-    error: errorDetails,
+    ...(process.env.NODE_ENV === "development" && { error: errorDetails }),
   });
 }
 

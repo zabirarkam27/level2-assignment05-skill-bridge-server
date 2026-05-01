@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { AdminService } from "./admin.service";
+import { makeTutorSchema, createTutorSchema } from "./admin.validation";
 
 const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -91,8 +92,8 @@ const getDashboardStats = async (req: Request, res: Response) => {
 const makeTutor = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { bio, subjects, price } = req.body;
-    const result = await AdminService.makeTutor(id as string, { bio, subjects, price });
+    const validatedData = makeTutorSchema.parse(req.body);
+    const result = await AdminService.makeTutor(id as string, validatedData);
     res.status(200).json({
       success: true,
       message: "User promoted to tutor successfully",
@@ -108,7 +109,8 @@ const makeTutor = async (req: Request, res: Response) => {
 
 const createTutor = async (req: Request, res: Response) => {
   try {
-    const { name, email, bio, subjects, price } = req.body;
+    const validatedData = createTutorSchema.parse(req.body);
+    const { name, email, bio, subjects, price } = validatedData;
     const result = await AdminService.createTutor({ name, email }, { bio, subjects, price });
     res.status(201).json({
       success: true,

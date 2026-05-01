@@ -73,9 +73,18 @@ const getAllTutors = async (req: Request, res: Response) => {
     const { search, minPrice, maxPrice, minRating, categoryId } = req.query;
     const filters: TutorFilters = {};
     if (search) filters.search = search as string;
-    if (minPrice) filters.minPrice = Number(minPrice);
-    if (maxPrice) filters.maxPrice = Number(maxPrice);
-    if (minRating) filters.minRating = Number(minRating);
+    if (minPrice) {
+      const parsed = Number(minPrice);
+      if (!isNaN(parsed)) filters.minPrice = parsed;
+    }
+    if (maxPrice) {
+      const parsed = Number(maxPrice);
+      if (!isNaN(parsed)) filters.maxPrice = parsed;
+    }
+    if (minRating) {
+      const parsed = Number(minRating);
+      if (!isNaN(parsed)) filters.minRating = parsed;
+    }
     if (categoryId) filters.categoryId = categoryId as string;
     const result = await TutorService.getAllTutors(filters);
     res.status(200).json({ success: true, data: result });
@@ -85,14 +94,16 @@ const getAllTutors = async (req: Request, res: Response) => {
 };
 
 const getSingleTutor = async (req: Request, res: Response) => {
-  const { id } = req.params;
-
-  const result = await TutorService.getSingleTutor(id as string);
-
-  res.status(200).json({
-    success: true,
-    data: result,
-  });
+  try {
+    const { id } = req.params;
+    const result = await TutorService.getSingleTutor(id as string);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
 };
 
 export const TutorController = {

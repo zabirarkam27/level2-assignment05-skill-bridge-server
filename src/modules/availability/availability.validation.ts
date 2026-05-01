@@ -4,6 +4,8 @@ export const createAvailabilitySchema = z.object({
   dayOfWeek: z.number().int().min(0).max(6, "Day of week must be 0-6 (Sunday-Saturday)"),
   startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid start time format (HH:MM)"),
   endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Invalid end time format (HH:MM)"),
+}).refine((data) => data.endTime > data.startTime, {
+  message: "End time must be after start time",
 });
 
 export const updateAvailabilitySchema = z.object({

@@ -4,7 +4,10 @@ import { updateProfileSchema } from "./user.validation";
 
 const getCurrentUser = async (req: Request, res: Response) => {
   try {
-    const userId = req.user!.id;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
     const result = await UserService.getCurrentUser(userId);
 
     res.status(200).json({
@@ -12,7 +15,8 @@ const getCurrentUser = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    const statusCode = error.message === "User not found" ? 404 : 400;
+    res.status(statusCode).json({
       success: false,
       message: error.message,
     });
@@ -22,7 +26,10 @@ const getCurrentUser = async (req: Request, res: Response) => {
 const updateProfile = async (req: Request, res: Response) => {
   try {
     const parsed = updateProfileSchema.parse(req.body);
-    const userId = req.user!.id;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
     const result = await UserService.updateProfile(userId, parsed);
 
     res.status(200).json({

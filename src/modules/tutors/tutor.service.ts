@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma";
+import { CreateTutorPayload, UpdateTutorPayload } from "./tutor.types";
 
-const createTutor = async (userId: string, payload: any) => {
+const createTutor = async (userId: string, payload: CreateTutorPayload) => {
   const isExist = await prisma.tutorProfile.findUnique({
     where: { userId },
   });
@@ -21,7 +22,7 @@ const createTutor = async (userId: string, payload: any) => {
   return result;
 };
 
-const updateTutor = async (userId: string, payload: any) => {
+const updateTutor = async (userId: string, payload: UpdateTutorPayload) => {
   const data = {
     bio: payload.bio,
     subjects: payload.subjects,

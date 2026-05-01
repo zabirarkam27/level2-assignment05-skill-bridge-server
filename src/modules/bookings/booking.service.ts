@@ -169,6 +169,13 @@ const updateBookingStatus = async (bookingId: string, userId: string, role: stri
     }
   }
 
+  if (role === "ADMIN") {
+    return await prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: status as any },
+    });
+  }
+
   if (status === "CANCELLED" && role === "STUDENT") {
     return await prisma.booking.update({
       where: { id: bookingId },

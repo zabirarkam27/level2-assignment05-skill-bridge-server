@@ -68,8 +68,25 @@ const getTutorOwnReviews = async (req: Request, res: Response) => {
     if (!userId) throw new Error("Unauthorized");
     const profile = await prisma.tutorProfile.findUnique({ where: { userId } });
     if (!profile) throw new Error("Tutor profile not found");
-    const result = await ReviewService.getTutorReviews(profile.id);
+    const result = await ReviewService.getTutorReviews(profile.id, true);
     res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const toggleVisibility = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    if (!userId || !role) throw new Error("Unauthorized");
+    const result = await ReviewService.toggleReviewVisibility(id as string, userId, role);
+    res.status(200).json({
+      success: true,
+      message: result.isHidden ? "Review hidden" : "Review visible",
+      data: result,
+    });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -80,4 +97,5 @@ export const ReviewController = {
   getTutorReviews,
   getTutorOwnReviews,
   getStudentReviews,
+  toggleVisibility,
 };
