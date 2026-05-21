@@ -23,16 +23,34 @@ const createTutor = async (userId: string, payload: CreateTutorPayload) => {
 };
 
 const updateTutor = async (userId: string, payload: UpdateTutorPayload) => {
-  const data = {
-    bio: payload.bio,
-    subjects: payload.subjects,
-    price: payload.price,
+  const updateData = {
+    ...(payload.bio !== undefined && {
+      bio: payload.bio,
+    }),
+
+    ...(payload.subjects !== undefined && {
+      subjects: payload.subjects,
+    }),
+
+    ...(payload.price !== undefined && {
+      price: payload.price,
+    }),
   };
 
   const result = await prisma.tutorProfile.upsert({
     where: { userId },
-    update: data,
-    create: { userId, ...data },
+
+    update: updateData,
+
+    create: {
+      userId,
+
+      bio: payload.bio ?? "",
+
+      subjects: payload.subjects ?? [],
+
+      price: payload.price ?? 0,
+    },
   });
 
   return result;
@@ -41,6 +59,7 @@ const updateTutor = async (userId: string, payload: UpdateTutorPayload) => {
 const getTutorProfileByUserId = async (userId: string) => {
   return await prisma.tutorProfile.findUnique({
     where: { userId },
+
     include: {
       user: true,
       reviews: true,
@@ -64,29 +83,72 @@ const getAllTutors = async (filters: TutorFilters = {}) => {
     where: {
       ...(search && {
         OR: [
-          { subjects: { hasSome: [search] } },
-          { bio: { contains: search, mode: "insensitive" } },
-          { user: { name: { contains: search, mode: "insensitive" } } },
+          {
+            subjects: {
+              hasSome: [search],
+            },
+          },
+
+          {
+            bio: {
+              contains: search,
+              mode: "insensitive",
+            },
+          },
+
+          {
+            user: {
+              name: {
+                contains: search,
+                mode: "insensitive",
+              },
+            },
+          },
         ],
       }),
-      ...(minPrice !== undefined && { price: { gte: minPrice } }),
-      ...(maxPrice !== undefined && { price: { lte: maxPrice } }),
-      ...(minRating !== undefined && { rating: { gte: minRating } }),
+
+      ...(minPrice !== undefined && {
+        price: {
+          gte: minPrice,
+        },
+      }),
+
+      ...(maxPrice !== undefined && {
+        price: {
+          lte: maxPrice,
+        },
+      }),
+
+      ...(minRating !== undefined && {
+        rating: {
+          gte: minRating,
+        },
+      }),
+
       ...(categoryId && {
-        categories: { some: { categoryId } },
+        categories: {
+          some: {
+            categoryId,
+          },
+        },
       }),
     },
+
     include: {
       user: true,
       reviews: true,
     },
-    orderBy: { rating: "desc" },
+
+    orderBy: {
+      rating: "desc",
+    },
   });
 };
 
 const getSingleTutor = async (id: string) => {
   return await prisma.tutorProfile.findUnique({
     where: { id },
+
     include: {
       user: true,
       reviews: true,

@@ -1,54 +1,121 @@
 import { prisma } from "../../lib/prisma";
-import { CreateBookingPayload } from "./booking.validation";
+import { BookingStatus, Prisma } from "@prisma/client";
+import {
+  CreateBookingPayload,
+  UpdateBookingStatusPayload,
+} from "./booking.validation";
+import {
+  buildSessionDateTime,
+  dayOfWeekFromDateString,
+} from "../../helpers/booking.helpers";
 
-const createBooking = async (studentId: string, payload: CreateBookingPayload) => {
+const ACTIVE_BOOKING_STATUSES = [
+  BookingStatus.PENDING,
+  BookingStatus.CONFIRMED,
+] as const;
+
+const createBooking = async (
+  studentId: string,
+  payload: CreateBookingPayload,
+) => {
   const tutor = await prisma.tutorProfile.findUnique({
     where: { id: payload.tutorId },
+    include: {
+      user: { select: { status: true } },
+    },
   });
 
   if (!tutor) {
     throw new Error("Tutor not found");
   }
 
+  if (tutor.user?.status !== "ACTIVE") {
+    throw new Error("This tutor is not available for bookings");
+  }
+
   if (tutor.userId === studentId) {
     throw new Error("You cannot book your own session");
   }
 
-  const bookingDate = new Date(payload.dateTime);
+  const slot = await prisma.availability.findFirst({
+    where: {
+      id: payload.availabilityId,
+      tutorId: payload.tutorId,
+    },
+  });
+
+  if (!slot) {
+    throw new Error("Selected time slot is not available for this tutor");
+  }
+
+  const selectedDay = dayOfWeekFromDateString(payload.date);
+  if (selectedDay !== slot.dayOfWeek) {
+    throw new Error("Selected date does not match the chosen day of week");
+  }
+
+  const bookingDate = buildSessionDateTime(payload.date, slot.startTime);
   if (bookingDate <= new Date()) {
     throw new Error("Booking date must be in the future");
   }
 
-  const result = await prisma.booking.create({
-    data: {
-      studentId,
-      tutorId: payload.tutorId,
-      dateTime: bookingDate,
-      status: "CONFIRMED",
-    },
-    include: {
-      student: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
-      tutor: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+  try {
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const conflicting = await tx.booking.findFirst({
+          where: {
+            tutorId: payload.tutorId,
+            dateTime: bookingDate,
+            status: { in: [...ACTIVE_BOOKING_STATUSES] },
+          },
+        });
+
+        if (conflicting) {
+          throw new Error("This time slot is already booked");
+        }
+
+        return tx.booking.create({
+          data: {
+            studentId,
+            tutorId: payload.tutorId,
+            dateTime: bookingDate,
+            status: BookingStatus.PENDING,
+          },
+          include: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+            tutor: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
+              },
             },
           },
-        },
+        });
       },
-    },
-  });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
-  return result;
+    return result;
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2034"
+    ) {
+      throw new Error("This time slot is already booked");
+    }
+
+    throw error;
+  }
 };
 
 const getStudentBookings = async (studentId: string) => {
@@ -99,7 +166,11 @@ const getTutorBookings = async (tutorId: string) => {
   });
 };
 
-const getSingleBooking = async (bookingId: string, userId: string, role: string) => {
+const getSingleBooking = async (
+  bookingId: string,
+  userId: string,
+  role: string,
+) => {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
     include: {
@@ -147,7 +218,12 @@ const getSingleBooking = async (bookingId: string, userId: string, role: string)
   return booking;
 };
 
-const updateBookingStatus = async (bookingId: string, userId: string, role: string, status: string) => {
+const updateBookingStatus = async (
+  bookingId: string,
+  userId: string,
+  role: string,
+  status: UpdateBookingStatusPayload["status"],
+) => {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
   });
@@ -172,22 +248,40 @@ const updateBookingStatus = async (bookingId: string, userId: string, role: stri
   if (role === "ADMIN") {
     return await prisma.booking.update({
       where: { id: bookingId },
-      data: { status: status as any },
+      data: { status },
     });
   }
 
   if (status === "CANCELLED" && role === "STUDENT") {
+    if (booking.status !== "PENDING" && booking.status !== "CONFIRMED") {
+      throw new Error("Only pending or confirmed bookings can be cancelled");
+    }
     return await prisma.booking.update({
       where: { id: bookingId },
       data: { status: "CANCELLED" },
     });
   }
 
-  if ((status === "CONFIRMED" || status === "COMPLETED") && role === "TUTOR") {
-    return await prisma.booking.update({
-      where: { id: bookingId },
-      data: { status: status as any },
-    });
+  if (role === "TUTOR") {
+    if (status === "CONFIRMED") {
+      if (booking.status !== "PENDING") {
+        throw new Error("Only pending bookings can be confirmed");
+      }
+      return await prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: "CONFIRMED" },
+      });
+    }
+
+    if (status === "COMPLETED") {
+      if (booking.status !== "CONFIRMED") {
+        throw new Error("Only confirmed sessions can be marked as completed");
+      }
+      return await prisma.booking.update({
+        where: { id: bookingId },
+        data: { status: "COMPLETED" },
+      });
+    }
   }
 
   throw new Error("Invalid status update");

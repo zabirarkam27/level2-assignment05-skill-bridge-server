@@ -38,6 +38,16 @@ const updateCategory = async (id: string, payload: UpdateCategoryPayload) => {
 };
 
 const deleteCategory = async (id: string) => {
+  const courseCount = await prisma.course.count({
+    where: { categoryId: id },
+  });
+
+  if (courseCount > 0) {
+    throw new Error(
+      "Cannot delete a category that has courses. Remove or reassign courses first.",
+    );
+  }
+
   return prisma.category.delete({
     where: { id },
   });

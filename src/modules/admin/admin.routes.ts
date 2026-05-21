@@ -16,4 +16,5 @@ router.get("/tutors/pending", auth(UserRole.ADMIN), AdminController.getPendingTu
 router.patch("/tutors/:id/approve", auth(UserRole.ADMIN), AdminController.approveTutor);
 router.patch("/tutors/:id/reject", auth(UserRole.ADMIN), AdminController.rejectTutor);
 
+
 export const adminRouter = router;

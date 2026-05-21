@@ -15,7 +15,7 @@ const createBooking = async (req: Request, res: Response) => {
 
     res.status(201).json({
       success: true,
-      message: "Booking created successfully",
+      message: "Booking request submitted. Waiting for tutor confirmation.",
       data: result,
     });
   } catch (error: any) {

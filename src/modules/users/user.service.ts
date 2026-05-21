@@ -7,9 +7,9 @@ const getCurrentUser = async (userId: string) => {
     select: {
       id: true,
       name: true,
+      image: true,
       email: true,
       emailVerified: true,
-      image: true,
       role: true,
       status: true,
       createdAt: true,
@@ -46,7 +46,7 @@ const updateProfile = async (userId: string, payload: UpdateProfilePayload) => {
     where: { id: userId },
     data: {
       ...(payload.name !== undefined && { name: payload.name }),
-      ...(payload.image !== undefined && { image: payload.image ?? null }),
+      ...(payload.image ? { image: payload.image } : { image: null }),
     },
     select: {
       id: true,

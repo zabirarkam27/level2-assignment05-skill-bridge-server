@@ -7,12 +7,14 @@ const getAllUsers = async () => {
     select: {
       id: true,
       name: true,
+      image: true,
       email: true,
       emailVerified: true,
       role: true,
       status: true,
       createdAt: true,
       updatedAt: true,
+
       tutorProfile: {
         select: {
           id: true,
@@ -21,26 +23,35 @@ const getAllUsers = async () => {
         },
       },
     },
-    orderBy: { createdAt: "desc" },
+
+    orderBy: {
+      createdAt: "desc",
+    },
   });
 };
 
 const getSingleUser = async (userId: string) => {
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: {
+      id: userId,
+    },
+
     select: {
       id: true,
       name: true,
+      image: true,
       email: true,
       emailVerified: true,
       role: true,
       status: true,
       createdAt: true,
       updatedAt: true,
+
       tutorProfile: {
         include: {
           categories: true,
           availabilities: true,
+
           reviews: {
             include: {
               booking: {
@@ -50,6 +61,7 @@ const getSingleUser = async (userId: string) => {
                       id: true,
                       name: true,
                       email: true,
+                      image: true,
                     },
                   },
                 },
@@ -58,6 +70,7 @@ const getSingleUser = async (userId: string) => {
           },
         },
       },
+
       bookingsAsStudent: {
         include: {
           tutor: {
@@ -67,12 +80,16 @@ const getSingleUser = async (userId: string) => {
                   id: true,
                   name: true,
                   email: true,
+                  image: true,
                 },
               },
             },
           },
         },
-        orderBy: { dateTime: "desc" },
+
+        orderBy: {
+          dateTime: "desc",
+        },
       },
     },
   });
@@ -84,7 +101,10 @@ const getSingleUser = async (userId: string) => {
   return user;
 };
 
-const updateUserStatus = async (userId: string, status: "ACTIVE" | "BANNED") => {
+const updateUserStatus = async (
+  userId: string,
+  status: "ACTIVE" | "BANNED",
+) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
   });
@@ -99,6 +119,7 @@ const updateUserStatus = async (userId: string, status: "ACTIVE" | "BANNED") => 
     select: {
       id: true,
       name: true,
+      image: true,
       email: true,
       role: true,
       status: true,
@@ -136,7 +157,13 @@ const getAllBookings = async () => {
 };
 
 const getDashboardStats = async () => {
-  const [totalUsers, totalTutors, totalStudents, totalBookings, totalCategories] = await Promise.all([
+  const [
+    totalUsers,
+    totalTutors,
+    totalStudents,
+    totalBookings,
+    totalCategories,
+  ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { role: "TUTOR" } }),
     prisma.user.count({ where: { role: "STUDENT" } }),
@@ -149,12 +176,12 @@ const getDashboardStats = async () => {
     orderBy: { createdAt: "desc" },
     include: {
       student: {
-        select: { name: true, email: true },
+        select: { name: true, email: true, image: true },
       },
       tutor: {
         include: {
           user: {
-            select: { name: true },
+            select: { name: true, image: true },
           },
         },
       },
@@ -176,7 +203,10 @@ const getDashboardStats = async () => {
   };
 };
 
-const makeTutor = async (userId: string, profileData: { bio: string; subjects: string[]; price: number }) => {
+const makeTutor = async (
+  userId: string,
+  profileData: { bio: string; subjects: string[]; price: number },
+) => {
   return await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) throw new Error("User not found");
@@ -196,12 +226,19 @@ const makeTutor = async (userId: string, profileData: { bio: string; subjects: s
   });
 };
 
-const createTutor = async (userData: { name: string; email: string }, profileData: { bio: string; subjects: string[]; price: number }) => {
-  const generatedPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-4).toUpperCase();
+const createTutor = async (
+  userData: { name: string; email: string },
+  profileData: { bio: string; subjects: string[]; price: number },
+) => {
+  const generatedPassword =
+    Math.random().toString(36).slice(-10) +
+    Math.random().toString(36).slice(-4).toUpperCase();
   const hashedPassword = await hashPassword(generatedPassword);
 
   return await prisma.$transaction(async (tx) => {
-    const existing = await tx.user.findUnique({ where: { email: userData.email } });
+    const existing = await tx.user.findUnique({
+      where: { email: userData.email },
+    });
     if (existing) throw new Error("A user with this email already exists");
 
     const user = await tx.user.create({
@@ -243,6 +280,7 @@ const getPendingTutors = async () => {
       id: true,
       name: true,
       email: true,
+      image: true,
       createdAt: true,
       status: true,
       tutorProfile: {
@@ -257,7 +295,8 @@ const approveTutor = async (userId: string) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User not found");
   if (user.role !== "TUTOR") throw new Error("User is not a tutor");
-  if (user.status !== UserStatus.PENDING) throw new Error("User is not pending approval");
+  if (user.status !== UserStatus.PENDING)
+    throw new Error("User is not pending approval");
 
   return await prisma.user.update({
     where: { id: userId },
@@ -270,7 +309,8 @@ const rejectTutor = async (userId: string) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User not found");
   if (user.role !== "TUTOR") throw new Error("User is not a tutor");
-  if (user.status !== UserStatus.PENDING) throw new Error("User is not pending approval");
+  if (user.status !== UserStatus.PENDING)
+    throw new Error("User is not pending approval");
 
   return await prisma.user.update({
     where: { id: userId },

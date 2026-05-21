@@ -41,8 +41,10 @@ model User {
 
   tutorProfile      TutorProfile?
   bookingsAsStudent Booking[]     @relation("StudentBookings")
+  coursesCreated    Course[]       @relation("CoursesCreated")
   sessions          Session[]
   accounts          Account[]
+  assignedCourses Course[] @relation("AssignedTutorCourses")
 
   @@map("user")
 }
@@ -136,9 +138,33 @@ model Category {
   description String?
   image       String?
   tutors      TutorCategory[]
+  courses     Course[]
 
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  image       String?
+  isPopular   Boolean  @default(false)
+  categoryId  String
+  createdById String
+  tutorId String?
+
+
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy   User     @relation("CoursesCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  tutor User? @relation("AssignedTutorCourses", fields: [tutorId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([createdById])
+  @@index([isPopular])
 }
 
 model TutorCategory {

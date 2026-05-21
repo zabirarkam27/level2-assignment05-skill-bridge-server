@@ -1,4 +1,5 @@
 import { categoryRouter } from "./modules/categories/category.routes";
+import { courseRouter } from "./modules/courses/course.routes";
 import { tutorRouter } from "./modules/tutors/tutor.routes";
 import { bookingRouter } from "./modules/bookings/booking.routes";
 import { adminRouter } from "./modules/admin/admin.routes";
@@ -11,6 +12,7 @@ import { userRouter } from "./modules/users/user.routes";
 import { uploadRouter } from "./modules/upload/upload.routes";
 
 app.use("/categories", categoryRouter);
+app.use("/courses", courseRouter);
 app.use("/mentors", tutorRouter);
 app.use("/bookings", bookingRouter);
 app.use("/admin", adminRouter);
