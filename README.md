@@ -4,11 +4,11 @@ Backend for the Assignment 4 SkillBridge full-stack project.
 
 ## Live Links
 
-- Backend: add your deployed backend URL here
-- Frontend: add your deployed frontend URL here
-- Video walkthrough: add your video URL here
-- Backend repository: add your backend GitHub URL here
-- Frontend repository: add your frontend GitHub URL here
+Frontend Repo    : `https://github.com/zabirarkam27/level2-assignment04-skill-bridge-client`
+Backend Repo     : `https://github.com/zabirarkam27/level2-assignment04-skill-bridge-server`
+Frontend Live    : `https://skill-bridge-client-two-beta.vercel.app/`
+Backend Live     : `https://skill-bridge-server-tan.vercel.app/`
+Demo Video       : `https://drive.google.com/file/d/1eSWTzs7AbmhB9P2nNIkrv_M_C003kcoB/view`
 
 ## Admin Credentials
 
