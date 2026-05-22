@@ -355,7 +355,8 @@ app.use((req, res, next) => {
     next();
     return;
   }
-  if (req.path.endsWith("/availability")) {
+  const isDashboardRequest = req.query.dashboard !== void 0 || Boolean(req.headers.cookie) || Boolean(req.headers.authorization);
+  if (isDashboardRequest || req.path.endsWith("/availability")) {
     res.setHeader("Cache-Control", "no-store");
     next();
     return;
