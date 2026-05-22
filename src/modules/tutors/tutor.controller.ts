@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { TutorService, TutorFilters } from "./tutor.service";
 import { ReviewService } from "../reviews/review.service";
 import { AvailabilityService } from "../availability/availability.service";
+import { getHttpStatusFromMessage } from "../../utils/httpStatus";
 
 const getTutorProfile = async (req: Request, res: Response) => {
   try {
@@ -10,7 +11,7 @@ const getTutorProfile = async (req: Request, res: Response) => {
     const result = await TutorService.getTutorProfileByUserId(userId);
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
@@ -20,7 +21,7 @@ const getTutorReviews = async (req: Request, res: Response) => {
     const result = await ReviewService.getTutorReviews(id as string);
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
@@ -30,7 +31,7 @@ const getTutorAvailability = async (req: Request, res: Response) => {
     const result = await AvailabilityService.getPublicTutorAvailability(id as string);
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
@@ -44,7 +45,7 @@ const createTutor = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -61,7 +62,7 @@ const updateTutor = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -89,7 +90,7 @@ const getAllTutors = async (req: Request, res: Response) => {
     const result = await TutorService.getAllTutors(filters);
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
@@ -102,7 +103,7 @@ const getSingleTutor = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 

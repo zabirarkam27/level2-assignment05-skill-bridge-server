@@ -4,18 +4,22 @@ import { CourseController } from "./course.controller";
 
 const router = Router();
 
-router.get("/popular", (req, res) => {
-  req.query.popular = "true";
+router.get("/popular", CourseController.getPopularCourses);
+router.get(
+  "/delete-requests",
+  auth(UserRole.ADMIN),
+  CourseController.getDeleteRequests,
+);
+
+router.get("/mine", auth(UserRole.ADMIN, UserRole.TUTOR), (req, res) => {
+  req.query.mine = "true";
   return CourseController.getAllCourses(req, res);
 });
 
-router.get(
-  "/mine",
-  auth(UserRole.ADMIN, UserRole.TUTOR),
-  (req, res) => {
-    req.query.mine = "true";
-    return CourseController.getAllCourses(req, res);
-  },
+router.patch(
+  "/delete-requests/:id",
+  auth(UserRole.ADMIN),
+  CourseController.resolveDeleteRequest,
 );
 
 router.get("/", CourseController.getAllCourses);
@@ -43,6 +47,12 @@ router.delete(
   "/:id",
   auth(UserRole.ADMIN, UserRole.TUTOR),
   CourseController.deleteCourse,
+);
+
+router.post(
+  "/:id/delete-request",
+  auth(UserRole.TUTOR),
+  CourseController.requestCourseDelete,
 );
 
 export const courseRouter = router;

@@ -1,6 +1,10 @@
 import { prisma } from "../../lib/prisma";
 import { UserStatus } from "@prisma/client";
 import { hashPassword } from "better-auth/crypto";
+import {
+  getValidCategorySubjects,
+  syncTutorCategories,
+} from "../../utils/tutorCategorySync";
 
 const getAllUsers = async () => {
   return await prisma.user.findMany({
@@ -113,6 +117,18 @@ const updateUserStatus = async (
     throw new Error("User not found");
   }
 
+  if (status === "BANNED" && user.role === "TUTOR") {
+    const assignedCourses = await prisma.course.count({
+      where: { tutorId: userId },
+    });
+
+    if (assignedCourses > 0) {
+      throw new Error(
+        "Reassign or delete this tutor's assigned courses before banning",
+      );
+    }
+  }
+
   return await prisma.user.update({
     where: { id: userId },
     data: { status },
@@ -147,6 +163,13 @@ const getAllBookings = async () => {
               email: true,
               image: true,
             },
+          },
+        },
+      },
+      course: {
+        include: {
+          category: {
+            select: { id: true, name: true, description: true, image: true },
           },
         },
       },
@@ -185,6 +208,12 @@ const getDashboardStats = async () => {
           },
         },
       },
+      course: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
     },
   });
 
@@ -214,13 +243,67 @@ const makeTutor = async (
 
     await tx.user.update({
       where: { id: userId },
-      data: { role: "TUTOR" },
+      data: { role: "TUTOR", status: UserStatus.ACTIVE },
     });
 
-    return await tx.tutorProfile.create({
+    const validSubjects = await getValidCategorySubjects(
+      tx,
+      profileData.subjects,
+    );
+
+    if (validSubjects.length === 0) {
+      throw new Error("Select at least one valid category as a subject");
+    }
+
+    const profile = await tx.tutorProfile.create({
       data: {
         userId,
-        ...profileData,
+        bio: profileData.bio,
+        subjects: validSubjects,
+        price: profileData.price,
+      },
+    });
+
+    await syncTutorCategories(tx, profile.id, validSubjects);
+
+    return profile;
+  });
+};
+
+const undoTutor = async (userId: string) => {
+  return await prisma.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      include: { tutorProfile: { select: { id: true } } },
+    });
+
+    if (!user) throw new Error("User not found");
+    if (user.role !== "TUTOR") throw new Error("User is not a tutor");
+
+    const assignedCourses = await tx.course.count({
+      where: { tutorId: userId },
+    });
+
+    if (assignedCourses > 0) {
+      throw new Error(
+        "Reassign or delete this tutor's assigned courses before undoing tutor",
+      );
+    }
+
+    if (user.tutorProfile) {
+      await tx.tutorProfile.delete({ where: { id: user.tutorProfile.id } });
+    }
+
+    return await tx.user.update({
+      where: { id: userId },
+      data: { role: "STUDENT", status: UserStatus.ACTIVE },
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        email: true,
+        role: true,
+        status: true,
       },
     });
   });
@@ -262,12 +345,25 @@ const createTutor = async (
       },
     });
 
+    const validSubjects = await getValidCategorySubjects(
+      tx,
+      profileData.subjects,
+    );
+
+    if (validSubjects.length === 0) {
+      throw new Error("Select at least one valid category as a subject");
+    }
+
     const profile = await tx.tutorProfile.create({
       data: {
         userId: user.id,
-        ...profileData,
+        bio: profileData.bio,
+        subjects: validSubjects,
+        price: profileData.price,
       },
     });
+
+    await syncTutorCategories(tx, profile.id, validSubjects);
 
     return { user, profile, generatedPassword };
   });
@@ -329,6 +425,18 @@ const deleteUser = async (userId: string) => {
     throw new Error("User not found");
   }
 
+  if (user.role === "TUTOR") {
+    const assignedCourses = await prisma.course.count({
+      where: { tutorId: userId },
+    });
+
+    if (assignedCourses > 0) {
+      throw new Error(
+        "Reassign or delete this tutor's assigned courses before deleting",
+      );
+    }
+  }
+
   return await prisma.$transaction(async (tx) => {
     // If the user is a tutor, clean up their profile and all related records
     if (user.tutorProfile) {
@@ -363,6 +471,7 @@ export const AdminService = {
   getAllBookings,
   getDashboardStats,
   makeTutor,
+  undoTutor,
   createTutor,
   deleteUser,
   getPendingTutors,

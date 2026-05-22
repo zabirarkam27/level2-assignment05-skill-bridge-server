@@ -37,6 +37,22 @@ const createBooking = async (
     throw new Error("You cannot book your own session");
   }
 
+  const course = await prisma.course.findFirst({
+    where: {
+      id: payload.courseId,
+      tutorId: tutor.userId,
+      tutor: {
+        role: "TUTOR",
+        status: "ACTIVE",
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!course) {
+    throw new Error("Please select a valid course for this mentor");
+  }
+
   const slot = await prisma.availability.findFirst({
     where: {
       id: payload.availabilityId,
@@ -77,6 +93,7 @@ const createBooking = async (
           data: {
             studentId,
             tutorId: payload.tutorId,
+            courseId: payload.courseId,
             dateTime: bookingDate,
             status: BookingStatus.PENDING,
           },
@@ -96,6 +113,13 @@ const createBooking = async (
                     name: true,
                     email: true,
                   },
+                },
+              },
+            },
+            course: {
+              include: {
+                category: {
+                  select: { id: true, name: true, description: true, image: true },
                 },
               },
             },
@@ -134,6 +158,13 @@ const getStudentBookings = async (studentId: string) => {
           },
         },
       },
+      course: {
+        include: {
+          category: {
+            select: { id: true, name: true, description: true, image: true },
+          },
+        },
+      },
       review: true,
     },
     orderBy: { dateTime: "desc" },
@@ -158,6 +189,13 @@ const getTutorBookings = async (tutorId: string) => {
           name: true,
           email: true,
           image: true,
+        },
+      },
+      course: {
+        include: {
+          category: {
+            select: { id: true, name: true, description: true, image: true },
+          },
         },
       },
       review: true,
@@ -191,6 +229,13 @@ const getSingleBooking = async (
               email: true,
               image: true,
             },
+          },
+        },
+      },
+      course: {
+        include: {
+          category: {
+            select: { id: true, name: true, description: true, image: true },
           },
         },
       },
@@ -307,6 +352,13 @@ const getAllBookings = async () => {
               email: true,
               image: true,
             },
+          },
+        },
+      },
+      course: {
+        include: {
+          category: {
+            select: { id: true, name: true, description: true, image: true },
           },
         },
       },

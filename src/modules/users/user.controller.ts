@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { UserService } from "./user.service";
 import { updateProfileSchema } from "./user.validation";
+import { getHttpStatusFromMessage } from "../../utils/httpStatus";
 
 const getCurrentUser = async (req: Request, res: Response) => {
   try {
@@ -15,7 +16,7 @@ const getCurrentUser = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    const statusCode = error.message === "User not found" ? 404 : 400;
+    const statusCode = getHttpStatusFromMessage(error.message);
     res.status(statusCode).json({
       success: false,
       message: error.message,
@@ -38,7 +39,7 @@ const updateProfile = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });

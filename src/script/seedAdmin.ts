@@ -1,22 +1,20 @@
 import { prisma } from "../lib/prisma";
+import { hashPassword } from "better-auth/crypto";
 
 async function seedAdmin() {
   try {
-    console.log("Seeding admin...");
-
     const adminEmail = "admin@skillbridge.com";
+    const adminPassword = process.env.ADMIN_PASSWORD || "admin1234";
+    const hashedPassword = await hashPassword(adminPassword);
 
-    const existingUser = await prisma.user.findUnique({
+    const admin = await prisma.user.upsert({
       where: { email: adminEmail },
-    });
-
-    if (existingUser) {
-      console.log("Admin already exists");
-      return;
-    }
-
-    const admin = await prisma.user.create({
-      data: {
+      update: {
+        role: "ADMIN",
+        status: "ACTIVE",
+        emailVerified: true,
+      },
+      create: {
         name: "Admin",
         email: adminEmail,
         emailVerified: true,
@@ -25,9 +23,33 @@ async function seedAdmin() {
       },
     });
 
-    console.log("Admin seeded successfully:", admin);
-  } catch (error) {
-    console.log("Error seeding admin", error);
+    const existingCredentialAccount = await prisma.account.findFirst({
+      where: {
+        userId: admin.id,
+        providerId: "credential",
+      },
+    });
+
+    if (existingCredentialAccount) {
+      await prisma.account.update({
+        where: { id: existingCredentialAccount.id },
+        data: { password: hashedPassword },
+      });
+    } else {
+      await prisma.account.create({
+        data: {
+          id: crypto.randomUUID(),
+          accountId: admin.id,
+          providerId: "credential",
+          userId: admin.id,
+          password: hashedPassword,
+        },
+      });
+    }
+  } catch {
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect();
   }
 }
 

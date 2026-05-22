@@ -1,59 +1,88 @@
 import { prisma } from "../../lib/prisma";
+import {
+  getValidCategorySubjects,
+  syncTutorCategories,
+} from "../../utils/tutorCategorySync";
 import { CreateTutorPayload, UpdateTutorPayload } from "./tutor.types";
 
 const createTutor = async (userId: string, payload: CreateTutorPayload) => {
-  const isExist = await prisma.tutorProfile.findUnique({
-    where: { userId },
+  return await prisma.$transaction(async (tx) => {
+    const isExist = await tx.tutorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (isExist) {
+      throw new Error("Tutor profile already exists");
+    }
+
+    const validSubjects = await getValidCategorySubjects(tx, payload.subjects);
+
+    if (validSubjects.length === 0) {
+      throw new Error("Select at least one valid category as a subject");
+    }
+
+    const result = await tx.tutorProfile.create({
+      data: {
+        userId,
+        bio: payload.bio,
+        subjects: validSubjects,
+        price: payload.price,
+      },
+    });
+
+    await syncTutorCategories(tx, result.id, validSubjects);
+
+    return result;
   });
-
-  if (isExist) {
-    throw new Error("Tutor profile already exists");
-  }
-
-  const result = await prisma.tutorProfile.create({
-    data: {
-      userId,
-      bio: payload.bio,
-      subjects: payload.subjects,
-      price: payload.price,
-    },
-  });
-
-  return result;
 };
 
 const updateTutor = async (userId: string, payload: UpdateTutorPayload) => {
-  const updateData = {
-    ...(payload.bio !== undefined && {
-      bio: payload.bio,
-    }),
+  return await prisma.$transaction(async (tx) => {
+    const validSubjects =
+      payload.subjects !== undefined
+        ? await getValidCategorySubjects(tx, payload.subjects)
+        : undefined;
 
-    ...(payload.subjects !== undefined && {
-      subjects: payload.subjects,
-    }),
+    if (payload.subjects !== undefined && validSubjects?.length === 0) {
+      throw new Error("Select at least one valid category as a subject");
+    }
 
-    ...(payload.price !== undefined && {
-      price: payload.price,
-    }),
-  };
+    const updateData = {
+      ...(payload.bio !== undefined && {
+        bio: payload.bio,
+      }),
 
-  const result = await prisma.tutorProfile.upsert({
-    where: { userId },
+      ...(validSubjects !== undefined && {
+        subjects: validSubjects,
+      }),
 
-    update: updateData,
+      ...(payload.price !== undefined && {
+        price: payload.price,
+      }),
+    };
 
-    create: {
-      userId,
+    const result = await tx.tutorProfile.upsert({
+      where: { userId },
 
-      bio: payload.bio ?? "",
+      update: updateData,
 
-      subjects: payload.subjects ?? [],
+      create: {
+        userId,
 
-      price: payload.price ?? 0,
-    },
+        bio: payload.bio ?? "",
+
+        subjects: validSubjects ?? [],
+
+        price: payload.price ?? 0,
+      },
+    });
+
+    if (validSubjects !== undefined) {
+      await syncTutorCategories(tx, result.id, validSubjects);
+    }
+
+    return result;
   });
-
-  return result;
 };
 
 const getTutorProfileByUserId = async (userId: string) => {
@@ -81,6 +110,10 @@ const getAllTutors = async (filters: TutorFilters = {}) => {
 
   return await prisma.tutorProfile.findMany({
     where: {
+      user: {
+        role: "TUTOR",
+        status: "ACTIVE",
+      },
       ...(search && {
         OR: [
           {
@@ -146,11 +179,37 @@ const getAllTutors = async (filters: TutorFilters = {}) => {
 };
 
 const getSingleTutor = async (id: string) => {
-  return await prisma.tutorProfile.findUnique({
-    where: { id },
+  return await prisma.tutorProfile.findFirst({
+    where: { id, user: { role: "TUTOR", status: "ACTIVE" } },
 
     include: {
-      user: true,
+      user: {
+        include: {
+          assignedCourses: {
+            include: {
+              category: {
+                select: { id: true, name: true, description: true, image: true },
+              },
+              tutor: {
+                select: {
+                  id: true,
+                  name: true,
+                  image: true,
+                  role: true,
+                  status: true,
+                  tutorProfile: {
+                    select: { id: true },
+                  },
+                },
+              },
+              createdBy: {
+                select: { id: true, name: true, image: true, role: true },
+              },
+            },
+            orderBy: [{ isPopular: "desc" }, { createdAt: "desc" }],
+          },
+        },
+      },
       reviews: true,
       availabilities: true,
     },

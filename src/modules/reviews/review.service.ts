@@ -1,7 +1,10 @@
 import { prisma } from "../../lib/prisma";
 import { CreateReviewPayload } from "./review.validation";
 
-const createReview = async (studentId: string, payload: CreateReviewPayload) => {
+const createReview = async (
+  studentId: string,
+  payload: CreateReviewPayload,
+) => {
   const booking = await prisma.booking.findUnique({
     where: { id: payload.bookingId },
     include: { review: true },
@@ -54,9 +57,11 @@ const createReview = async (studentId: string, payload: CreateReviewPayload) => 
       where: { tutorId: booking.tutorId },
     });
 
-    const avgRating = tutorReviews.length > 0
-      ? tutorReviews.reduce((sum, r) => sum + r.rating, 0) / tutorReviews.length
-      : 0;
+    const avgRating =
+      tutorReviews.length > 0
+        ? tutorReviews.reduce((sum, r) => sum + r.rating, 0) /
+          tutorReviews.length
+        : 0;
 
     await tx.tutorProfile.update({
       where: { id: booking.tutorId },
@@ -88,7 +93,34 @@ const getTutorReviews = async (tutorId: string, includeHidden = false) => {
   });
 };
 
-const toggleReviewVisibility = async (reviewId: string, userId: string, role: string) => {
+const getPublicReviews = async () => {
+  return await prisma.review.findMany({
+    where: { isHidden: false },
+    include: {
+      booking: {
+        include: {
+          student: {
+            select: { id: true, name: true, email: true, image: true },
+          },
+          tutor: {
+            include: {
+              user: {
+                select: { id: true, name: true, email: true, image: true },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+};
+
+const toggleReviewVisibility = async (
+  reviewId: string,
+  userId: string,
+  role: string,
+) => {
   const review = await prisma.review.findUnique({ where: { id: reviewId } });
   if (!review) throw new Error("Review not found");
 
@@ -128,6 +160,7 @@ const getStudentReviews = async (studentId: string) => {
 
 export const ReviewService = {
   createReview,
+  getPublicReviews,
   getTutorReviews,
   toggleReviewVisibility,
   getStudentReviews,

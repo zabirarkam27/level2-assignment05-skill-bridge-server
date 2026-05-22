@@ -12,10 +12,6 @@ export interface OptimizedImage {
   height: number;
 }
 
-/**
- * Resize, compress, and convert to AVIF (preferred) or WebP.
- * Original buffer is never persisted — only the returned optimized buffer.
- */
 export async function optimizeImageBuffer(
   input: Buffer,
   preset: ImagePreset,
@@ -31,11 +27,11 @@ export async function optimizeImageBuffer(
     withoutEnlargement: true,
   });
 
-  const avifResult = await tryEncode(resized.clone(), "avif", quality);
-  if (avifResult) return avifResult;
-
   const webpResult = await tryEncode(resized.clone(), "webp", quality);
   if (webpResult) return webpResult;
+
+  const avifResult = await tryEncode(resized.clone(), "avif", quality);
+  if (avifResult) return avifResult;
 
   throw new Error("Image optimization failed");
 }
@@ -48,8 +44,8 @@ async function tryEncode(
   try {
     const encoder =
       format === "avif"
-        ? pipeline.avif({ quality, effort: 4 })
-        : pipeline.webp({ quality, effort: 4, alphaQuality: quality });
+        ? pipeline.avif({ quality, effort: 2 })
+        : pipeline.webp({ quality, effort: 2, alphaQuality: quality });
 
     const { data, info } = await encoder.toBuffer({ resolveWithObject: true });
 

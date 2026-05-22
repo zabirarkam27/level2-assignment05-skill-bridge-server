@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { BookingService } from "./booking.service";
 import { createBookingSchema, updateBookingStatusSchema } from "./booking.validation";
+import { getHttpStatusFromMessage } from "../../utils/httpStatus";
 
 const createBooking = async (req: Request, res: Response) => {
   try {
@@ -19,7 +20,7 @@ const createBooking = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -47,7 +48,7 @@ const getUserBookings = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -71,7 +72,7 @@ const getSingleBooking = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -97,7 +98,7 @@ const updateBookingStatus = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -123,7 +124,7 @@ const completeBooking = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 

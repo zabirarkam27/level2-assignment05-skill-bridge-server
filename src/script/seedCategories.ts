@@ -11,7 +11,8 @@ const DEFAULT_CATEGORIES = [
   },
   {
     name: "Data Science",
-    description: "Analytics, machine learning foundations, and data engineering",
+    description:
+      "Analytics, machine learning foundations, and data engineering",
   },
   {
     name: "Cloud Computing",
@@ -33,8 +34,6 @@ const DEFAULT_CATEGORIES = [
 
 async function seedCategories() {
   try {
-    console.log("Seeding course categories...");
-
     for (const category of DEFAULT_CATEGORIES) {
       await prisma.category.upsert({
         where: { name: category.name },
@@ -43,12 +42,9 @@ async function seedCategories() {
         },
         create: category,
       });
-      console.log(`  ✓ ${category.name}`);
     }
-
-    console.log("Category seeding complete.");
-  } catch (error) {
-    console.error("Category seed failed:", error);
+  } catch {
+    process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }

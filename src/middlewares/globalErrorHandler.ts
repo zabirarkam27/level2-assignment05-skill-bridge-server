@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { Prisma } from "@prisma/client";
+import { getHttpStatusFromMessage } from "../utils/httpStatus";
 
 function errorHandler(
   err: any,
@@ -72,11 +73,15 @@ function errorHandler(
         "Our service is temporarily unavailable. Please try again later.";
     }
 
-    console.error("Prisma Initialization Error:", err);
+  }
+  else if (err instanceof Error) {
+    statusCode = getHttpStatusFromMessage(err.message);
+    errorMessage = err.message;
   }
 
   res.status(statusCode);
   res.json({
+    success: false,
     message: errorMessage,
     ...(process.env.NODE_ENV === "development" && { error: errorDetails }),
   });

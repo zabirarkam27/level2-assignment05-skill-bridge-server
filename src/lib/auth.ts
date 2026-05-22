@@ -13,12 +13,34 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const authBaseUrl = process.env.BETTER_AUTH_URL || "http://localhost:5000";
+const appUrl = process.env.APP_URL || "http://localhost:3000";
+const isHttpsAuthUrl = authBaseUrl.startsWith("https://");
+
 export const auth = betterAuth({
-  baseURL: process.env.BETTER_AUTH_URL!,
+  baseURL: authBaseUrl,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-  trustedOrigins: [process.env.APP_URL!, process.env.BETTER_AUTH_URL!],
+  trustedOrigins: Array.from(
+    new Set([
+      appUrl,
+      authBaseUrl,
+      "http://localhost:3000",
+      "http://localhost:5000",
+      "https://skill-bridge-client-two-beta.vercel.app",
+      "https://skill-bridge-server-tan.vercel.app",
+    ]),
+  ),
+  advanced: {
+    useSecureCookies: isHttpsAuthUrl,
+    defaultCookieAttributes: {
+      sameSite: isHttpsAuthUrl ? "none" : "lax",
+      secure: isHttpsAuthUrl,
+      httpOnly: true,
+      path: "/",
+    },
+  },
 
   user: {
     additionalFields: {
@@ -105,9 +127,8 @@ export const auth = betterAuth({
               </body>
             </html>`,
         });
-      } catch (err) {
-        console.error("Error sending reset password email:", err);
-        throw err;
+      } catch (error) {
+        throw error;
       }
     },
   },
@@ -118,7 +139,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, token }) => {
       try {
         const verificationUrl = `${process.env.APP_URL}/verify-email?token=${token}`;
-        const info = await transporter.sendMail({
+        await transporter.sendMail({
           from: '"Skill Bridge" <skillbridge.noreply@gmail.com>',
           to: user.email,
           subject: "Verify your email address",
@@ -283,10 +304,8 @@ export const auth = betterAuth({
             `,
         });
 
-        console.log("Message sent:", info.messageId);
-      } catch (err) {
-        console.error("Error sending verification email:", err);
-        throw err;
+      } catch (error) {
+        throw error;
       }
     },
   },
@@ -301,4 +320,3 @@ export const auth = betterAuth({
   },
   secret: process.env.BETTER_AUTH_SECRET!,
 });
-

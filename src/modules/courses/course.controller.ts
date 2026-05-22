@@ -19,10 +19,21 @@ const getAllCourses = async (req: Request, res: Response) => {
     const filters: Parameters<typeof CourseService.getAllCourses>[0] = {
       ...(popular && { popular: true }),
       ...(categoryId && { categoryId }),
-      ...(mine && req.user?.id && { createdById: req.user.id }),
+      ...(mine &&
+        req.user?.id &&
+        req.user?.role && { mineUserId: req.user.id, mineRole: req.user.role }),
     };
 
     const result = await CourseService.getAllCourses(filters);
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getPopularCourses = async (req: Request, res: Response) => {
+  try {
+    const result = await CourseService.getAllCourses({ popular: true });
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
@@ -46,7 +57,10 @@ const createCourse = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     if (!userId) throw new Error("Unauthorized");
 
-    const result = await CourseService.createCourse(userId, parsed);
+    const role = req.user?.role;
+    if (!role) throw new Error("Unauthorized");
+
+    const result = await CourseService.createCourse(userId, role, parsed);
     res.status(201).json({
       success: true,
       message: "Course created successfully",
@@ -95,6 +109,64 @@ const deleteCourse = async (req: Request, res: Response) => {
   }
 };
 
+const requestCourseDelete = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    if (!userId || !role) throw new Error("Unauthorized");
+
+    const result = await CourseService.requestCourseDelete(
+      id as string,
+      userId,
+      role,
+    );
+
+    res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getDeleteRequests = async (_req: Request, res: Response) => {
+  try {
+    const result = await CourseService.getDeleteRequests();
+    res.status(200).json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const resolveDeleteRequest = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user?.id;
+    const action = req.body?.action;
+
+    if (!adminId) throw new Error("Unauthorized");
+    if (action !== "APPROVED" && action !== "REJECTED") {
+      throw new Error("Invalid action");
+    }
+
+    const result = await CourseService.resolveDeleteRequest(
+      id as string,
+      adminId,
+      action,
+    );
+
+    res.status(200).json({
+      success: true,
+      message:
+        action === "APPROVED"
+          ? "Course delete request approved"
+          : "Course delete request rejected",
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 const togglePopular = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -102,7 +174,9 @@ const togglePopular = async (req: Request, res: Response) => {
     const result = await CourseService.togglePopular(id as string, isPopular);
     res.status(200).json({
       success: true,
-      message: isPopular ? "Course marked as popular" : "Course removed from popular",
+      message: isPopular
+        ? "Course marked as popular"
+        : "Course removed from popular",
       data: result,
     });
   } catch (error: any) {
@@ -112,9 +186,13 @@ const togglePopular = async (req: Request, res: Response) => {
 
 export const CourseController = {
   getAllCourses,
+  getPopularCourses,
   getSingleCourse,
   createCourse,
   updateCourse,
   deleteCourse,
+  requestCourseDelete,
+  getDeleteRequests,
+  resolveDeleteRequest,
   togglePopular,
 };

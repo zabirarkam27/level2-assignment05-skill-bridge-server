@@ -12,10 +12,6 @@ router.post(
   UploadController.uploadImage,
 );
 
-router.post(
-  "/image/from-url",
-  auth(),
-  UploadController.uploadImageFromUrl,
-);
+router.post("/image/from-url", auth(), UploadController.uploadImageFromUrl);
 
 export const uploadRouter = router;

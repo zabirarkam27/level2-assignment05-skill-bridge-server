@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AdminService } from "./admin.service";
 import { makeTutorSchema, createTutorSchema } from "./admin.validation";
+import { getHttpStatusFromMessage } from "../../utils/httpStatus";
 
 const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -10,7 +11,7 @@ const getAllUsers = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -26,7 +27,7 @@ const getSingleUser = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -52,7 +53,7 @@ const updateUserStatus = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -67,7 +68,7 @@ const getAllBookings = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -82,7 +83,7 @@ const getDashboardStats = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -100,7 +101,24 @@ const makeTutor = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const undoTutor = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await AdminService.undoTutor(id as string);
+    res.status(200).json({
+      success: true,
+      message: "Tutor changed back to student successfully",
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -118,7 +136,7 @@ const createTutor = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -130,7 +148,7 @@ const getPendingTutors = async (req: Request, res: Response) => {
     const result = await AdminService.getPendingTutors();
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
@@ -140,7 +158,7 @@ const approveTutor = async (req: Request, res: Response) => {
     const result = await AdminService.approveTutor(id as string);
     res.status(200).json({ success: true, message: "Tutor approved successfully", data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
@@ -150,7 +168,7 @@ const rejectTutor = async (req: Request, res: Response) => {
     const result = await AdminService.rejectTutor(id as string);
     res.status(200).json({ success: true, message: "Tutor application rejected", data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
@@ -164,7 +182,7 @@ const deleteUser = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -178,6 +196,7 @@ export const AdminController = {
   getAllBookings,
   getDashboardStats,
   makeTutor,
+  undoTutor,
   createTutor,
   deleteUser,
   getPendingTutors,

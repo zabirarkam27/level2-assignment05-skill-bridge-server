@@ -5,6 +5,7 @@ export const createCourseSchema = z.object({
   description: z.string().max(2000).optional(),
   image: z.string().url().optional().or(z.literal("")),
   categoryId: z.string().uuid("Invalid category ID"),
+  tutorId: z.string().min(1, "Tutor is required").optional(),
 });
 
 export const updateCourseSchema = z.object({
@@ -12,6 +13,7 @@ export const updateCourseSchema = z.object({
   description: z.string().max(2000).optional(),
   image: z.string().url().optional().or(z.literal("")),
   categoryId: z.string().uuid().optional(),
+  tutorId: z.string().min(1, "Tutor is required").optional(),
 });
 
 export const togglePopularSchema = z.object({

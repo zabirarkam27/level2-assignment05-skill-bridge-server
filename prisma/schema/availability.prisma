@@ -1,14 +1,14 @@
 model Availability {
-  id           String                       @id @default(uuid())
-  tutorId      String
-  dayOfWeek    Int
-  startTime    String
-  endTime      String
+  id        String @id @default(uuid())
+  tutorId   String
+  dayOfWeek Int
+  startTime String
+  endTime   String
 
   tutorProfile TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
 
-  createdAt    DateTime                     @default(now())
-  updatedAt    DateTime                     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([tutorId, dayOfWeek, startTime, endTime])
   @@index([tutorId])

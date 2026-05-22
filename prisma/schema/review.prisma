@@ -1,18 +1,19 @@
 model Review {
-  id        String                       @id @default(uuid())
-  bookingId String                       @unique
+  id        String   @id @default(uuid())
+  bookingId String   @unique
   studentId String
   tutorId   String
   rating    Int
   comment   String
-  isHidden  Boolean                      @default(false)
-  createdAt DateTime                     @default(now())
-  updatedAt DateTime                     @updatedAt
+  isHidden  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  booking   Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  tutor     TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  booking Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  tutor   TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
 
   @@index([studentId])
   @@index([tutorId])
   @@index([rating])
   @@index([isHidden])
+}

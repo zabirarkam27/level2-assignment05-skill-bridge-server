@@ -1,29 +1,33 @@
 model User {
-  id            String         @id @default(uuid())
+  id            String     @id @default(uuid())
   name          String
-  email         String         @unique
-  emailVerified Boolean        @default(false)
+  email         String     @unique
+  emailVerified Boolean    @default(false)
   image         String?
   phone         String?
-  role          ROLE           @default(STUDENT)
-  status        UserStatus     @default(ACTIVE)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  role          ROLE       @default(STUDENT)
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
 
-  tutorProfile    TutorProfile?
+  tutorProfile      TutorProfile?
   bookingsAsStudent Booking[]     @relation("StudentBookings")
-  sessions        Session[]
-  accounts        Account[]
+  coursesCreated    Course[]      @relation("CoursesCreated")
+  courseDeleteRequests CourseDeleteRequest[] @relation("CourseDeleteRequester")
+  resolvedCourseDeleteRequests CourseDeleteRequest[] @relation("CourseDeleteResolver")
+  sessions          Session[]
+  accounts          Account[]
+  assignedCourses   Course[]      @relation("AssignedTutorCourses")
 
   @@map("user")
 }
 
 model Session {
-  id        String    @id
+  id        String   @id
   expiresAt DateTime
-  token     String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
   userId    String
@@ -34,7 +38,7 @@ model Session {
 }
 
 model Account {
-  id                    String     @id
+  id                    String    @id
   accountId             String
   providerId            String
   userId                String
@@ -46,20 +50,20 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@index([userId])
   @@map("account")
 }
 
 model Verification {
-  id         String    @id
+  id         String   @id
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([identifier])
   @@map("verification")

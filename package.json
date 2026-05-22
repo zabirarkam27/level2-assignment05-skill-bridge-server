@@ -9,12 +9,14 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed:categories": "npx tsx src/script/seedCategories.ts"
+    "db:seed:admin": "npx tsx src/script/seedAdmin.ts",
+    "db:seed:categories": "npx tsx src/script/seedCategories.ts",
+    "db:sync:tutor-categories": "npx tsx src/script/syncTutorCategories.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

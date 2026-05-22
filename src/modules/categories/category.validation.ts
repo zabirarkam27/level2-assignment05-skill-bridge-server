@@ -22,7 +22,7 @@ export const updateCategorySchema = z.object({
     .string()
     .max(500, "Description must be 500 characters or less")
     .optional(),
-  image: z.string().url().optional(),
+  image: z.string().url().optional().or(z.literal("")),
 });
 
 export type CreateCategoryPayload = z.infer<typeof createCategorySchema>;

@@ -1,18 +1,21 @@
 model Booking {
-  id        String                        @id @default(uuid())
+  id        String        @id @default(uuid())
   studentId String
   tutorId   String
+  courseId  String?
   dateTime  DateTime
-  status    BookingStatus                 @default(PENDING)
-  createdAt DateTime                      @default(now())
-  updatedAt DateTime                      @updatedAt
+  status    BookingStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
-  student   User          @relation("StudentBookings", fields: [studentId], references: [id], onDelete: Cascade)
-  tutor     TutorProfile  @relation(fields: [tutorId], references: [id], onDelete: Cascade)
-  review    Review?
+  student User         @relation("StudentBookings", fields: [studentId], references: [id], onDelete: Cascade)
+  tutor   TutorProfile @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  course  Course?      @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  review  Review?
 
   @@index([studentId])
   @@index([tutorId])
+  @@index([courseId])
   @@index([status])
   @@index([dateTime])
 }

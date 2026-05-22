@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { ReviewService } from "./review.service";
 import { createReviewSchema } from "./review.validation";
 import { prisma } from "../../lib/prisma";
+import { getHttpStatusFromMessage } from "../../utils/httpStatus";
 
 const createReview = async (req: Request, res: Response) => {
   try {
@@ -18,7 +19,7 @@ const createReview = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -35,7 +36,23 @@ const getTutorReviews = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const getPublicReviews = async (_req: Request, res: Response) => {
+  try {
+    const result = await ReviewService.getPublicReviews();
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -55,7 +72,7 @@ const getStudentReviews = async (req: Request, res: Response) => {
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({
+    res.status(getHttpStatusFromMessage(error.message)).json({
       success: false,
       message: error.message,
     });
@@ -71,7 +88,7 @@ const getTutorOwnReviews = async (req: Request, res: Response) => {
     const result = await ReviewService.getTutorReviews(profile.id, true);
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
@@ -81,19 +98,24 @@ const toggleVisibility = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     const role = req.user?.role;
     if (!userId || !role) throw new Error("Unauthorized");
-    const result = await ReviewService.toggleReviewVisibility(id as string, userId, role);
+    const result = await ReviewService.toggleReviewVisibility(
+      id as string,
+      userId,
+      role,
+    );
     res.status(200).json({
       success: true,
       message: result.isHidden ? "Review hidden" : "Review visible",
       data: result,
     });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(getHttpStatusFromMessage(error.message)).json({ success: false, message: error.message });
   }
 };
 
 export const ReviewController = {
   createReview,
+  getPublicReviews,
   getTutorReviews,
   getTutorOwnReviews,
   getStudentReviews,

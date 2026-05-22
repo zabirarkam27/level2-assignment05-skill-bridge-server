@@ -4,7 +4,9 @@ import { ImageUploadService } from "../../lib/image";
 const uploadImage = async (req: Request, res: Response) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "No file provided" });
+      return res
+        .status(400)
+        .json({ success: false, message: "No file provided" });
     }
 
     const result = await ImageUploadService.fromMulterFile(
@@ -28,7 +30,9 @@ const uploadImageFromUrl = async (req: Request, res: Response) => {
   try {
     const { url, preset } = req.body;
     if (!url || typeof url !== "string") {
-      return res.status(400).json({ success: false, message: "Image URL is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Image URL is required" });
     }
 
     const result = await ImageUploadService.fromUrl(url, preset);

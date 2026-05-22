@@ -1,7 +1,17 @@
 node_modules
 # Keep environment variables out of version control
 .env
+!.env.example
 
 generated/prisma
 dist/
 build/
+
+.vercel
+.env*.local
+.vercelignore
+
+.vscode
+.idea
+.DS_Store
+*.log

@@ -10,6 +10,7 @@ router.get("/users/:id", auth(UserRole.ADMIN), AdminController.getSingleUser);
 router.patch("/users/:id", auth(UserRole.ADMIN), AdminController.updateUserStatus);
 router.delete("/users/:id", auth(UserRole.ADMIN), AdminController.deleteUser);
 router.post("/users/:id/make-mentor", auth(UserRole.ADMIN), AdminController.makeTutor);
+router.post("/users/:id/undo-mentor", auth(UserRole.ADMIN), AdminController.undoTutor);
 router.post("/users/create-mentor", auth(UserRole.ADMIN), AdminController.createTutor);
 router.get("/bookings", auth(UserRole.ADMIN), AdminController.getAllBookings);
 router.get("/tutors/pending", auth(UserRole.ADMIN), AdminController.getPendingTutors);

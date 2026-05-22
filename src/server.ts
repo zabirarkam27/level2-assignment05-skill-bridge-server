@@ -4,22 +4,22 @@ import { prisma } from "./lib/prisma";
 import "dotenv/config";
 
 const PORT = process.env.PORT || 5000;
+
 async function main() {
   try {
     await prisma.$connect();
-    console.log("Database connected successfully.");
 
     app.listen(PORT, () => {
-      console.log(`Server is running on http://localhost:${PORT}`);
+      if (process.env.NODE_ENV === "development") {
+        process.stdout.write(`Server is running on http://localhost:${PORT}\n`);
+      }
     });
-  } catch (err) {
-    console.error(err);
+  } catch {
     await prisma.$disconnect();
     process.exit(1);
   }
 }
 
-main().catch((err) => {
-  console.error("Failed to start server:", err);
+main().catch(() => {
   process.exit(1);
 });

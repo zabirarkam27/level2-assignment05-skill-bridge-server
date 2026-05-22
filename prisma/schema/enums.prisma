@@ -17,3 +17,9 @@ enum BookingStatus {
   COMPLETED
   CANCELLED
 }
+
+enum CourseDeleteRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
