@@ -59,8 +59,60 @@ const paymentCancel = async (req: Request, res: Response) => {
   res.redirect(`${getFrontendUrl()}/dashboard/bookings?payment=cancelled`);
 };
 
+const getPaymentHistory = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    if (!userId || !role) {
+      throw new Error("Unauthorized");
+    }
+
+    const result = await PaymentService.getPaymentHistory({ userId, role });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const downloadInvoice = async (req: Request, res: Response) => {
+  try {
+    const rawId = req.params.id;
+    const id = Array.isArray(rawId) ? rawId[0] : rawId;
+    const userId = req.user?.id;
+    const role = req.user?.role;
+
+    if (!id || !userId || !role) {
+      throw new Error("Unauthorized or invalid request");
+    }
+
+    const invoice = await PaymentService.createInvoicePdf(id, userId, role);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${invoice.filename}"`,
+    );
+    res.status(200).send(invoice.buffer);
+  } catch (error: any) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 export const PaymentController = {
   initiatePayment,
   paymentSuccess,
   paymentCancel,
+  getPaymentHistory,
+  downloadInvoice,
 };

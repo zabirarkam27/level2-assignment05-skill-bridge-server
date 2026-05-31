@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { BookingService } from "../bookings/booking.service";
 import { InitiatePaymentPayload } from "./payment.validation";
+import { renderInvoicePdf } from "./invoice.template";
 
 const ZERO_DECIMAL_CURRENCIES = new Set([
   "bif",
@@ -241,8 +242,136 @@ const markPaymentCancelled = async (paymentId?: string) => {
   });
 };
 
+type PaymentScope = {
+  userId: string;
+  role: string;
+};
+
+const buildPaymentWhere = async ({ userId, role }: PaymentScope) => {
+  if (role === "ADMIN") return {};
+  if (role === "STUDENT") return { studentId: userId };
+  if (role === "TUTOR") {
+    const tutorProfile = await prisma.tutorProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!tutorProfile) {
+      throw new Error("Tutor profile not found");
+    }
+
+    return { tutorId: tutorProfile.id };
+  }
+
+  throw new Error("Unauthorized");
+};
+
+const enrichPayments = async (payments: Awaited<ReturnType<typeof prisma.payment.findMany>>) => {
+  const studentIds = Array.from(new Set(payments.map((item) => item.studentId)));
+  const tutorIds = Array.from(new Set(payments.map((item) => item.tutorId)));
+  const courseIds = Array.from(new Set(payments.map((item) => item.courseId)));
+  const bookingIds = Array.from(
+    new Set(payments.map((item) => item.bookingId).filter(Boolean) as string[]),
+  );
+
+  const [students, tutors, courses, bookings] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: studentIds } },
+      select: { id: true, name: true, email: true, image: true },
+    }),
+    prisma.tutorProfile.findMany({
+      where: { id: { in: tutorIds } },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+      },
+    }),
+    prisma.course.findMany({
+      where: { id: { in: courseIds } },
+      include: { category: { select: { id: true, name: true } } },
+    }),
+    prisma.booking.findMany({
+      where: { id: { in: bookingIds } },
+      select: { id: true, status: true, dateTime: true },
+    }),
+  ]);
+
+  const studentMap = new Map(students.map((item) => [item.id, item]));
+  const tutorMap = new Map(tutors.map((item) => [item.id, item]));
+  const courseMap = new Map(courses.map((item) => [item.id, item]));
+  const bookingMap = new Map(bookings.map((item) => [item.id, item]));
+
+  return payments.map((payment) => ({
+    ...payment,
+    student: studentMap.get(payment.studentId) ?? null,
+    tutor: tutorMap.get(payment.tutorId) ?? null,
+    course: courseMap.get(payment.courseId) ?? null,
+    booking: payment.bookingId ? bookingMap.get(payment.bookingId) ?? null : null,
+  }));
+};
+
+const getPaymentHistory = async (scope: PaymentScope) => {
+  const where = await buildPaymentWhere(scope);
+  const payments = await prisma.payment.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+  });
+
+  return await enrichPayments(payments);
+};
+
+const getPaymentForInvoice = async (
+  paymentId: string,
+  userId: string,
+  role: string,
+) => {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+  });
+
+  if (!payment) {
+    throw new Error("Payment not found");
+  }
+
+  if (role === "STUDENT" && payment.studentId !== userId) {
+    throw new Error("Unauthorized");
+  }
+
+  if (role === "TUTOR") {
+    const tutorProfile = await prisma.tutorProfile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!tutorProfile || tutorProfile.id !== payment.tutorId) {
+      throw new Error("Unauthorized");
+    }
+  }
+
+  const [enriched] = await enrichPayments([payment]);
+  if (!enriched) {
+    throw new Error("Payment not found");
+  }
+
+  return enriched;
+};
+
+const createInvoicePdf = async (
+  paymentId: string,
+  userId: string,
+  role: string,
+) => {
+  const payment = await getPaymentForInvoice(paymentId, userId, role);
+
+  return {
+    filename: `skillbridge-invoice-${payment.transactionId}.pdf`,
+    buffer: renderInvoicePdf(payment),
+  };
+};
+
 export const PaymentService = {
   initiatePayment,
   createBookingAfterPayment,
   markPaymentCancelled,
+  getPaymentHistory,
+  createInvoicePdf,
 };

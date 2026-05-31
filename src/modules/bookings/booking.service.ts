@@ -14,6 +14,52 @@ const ACTIVE_BOOKING_STATUSES = [
   BookingStatus.CONFIRMED,
 ] as const;
 
+const paymentSelect = {
+  id: true,
+  bookingId: true,
+  status: true,
+  gateway: true,
+  amount: true,
+  currency: true,
+  transactionId: true,
+  createdAt: true,
+} as const;
+
+const attachPaymentsToBookings = async <T extends { id: string }>(
+  bookings: T[],
+) => {
+  if (bookings.length === 0) {
+    return bookings.map((booking) => ({ ...booking, payment: null }));
+  }
+
+  const payments = await prisma.payment.findMany({
+    where: { bookingId: { in: bookings.map((booking) => booking.id) } },
+    select: paymentSelect,
+  });
+
+  const paymentByBookingId = new Map(
+    payments
+      .filter((payment) => payment.bookingId)
+      .map((payment) => [payment.bookingId as string, payment]),
+  );
+
+  return bookings.map((booking) => ({
+    ...booking,
+    payment: paymentByBookingId.get(booking.id) ?? null,
+  }));
+};
+
+const ensureBookingPaymentPaid = async (bookingId: string) => {
+  const payment = await prisma.payment.findFirst({
+    where: { bookingId },
+    select: { status: true },
+  });
+
+  if (payment?.status !== "PAID") {
+    throw new Error("Payment must be completed before confirming this booking");
+  }
+};
+
 const validateBookingRequest = async (
   studentId: string,
   payload: CreateBookingPayload,
@@ -170,7 +216,7 @@ const createBooking = async (
 };
 
 const getStudentBookings = async (studentId: string) => {
-  return await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     where: { studentId },
     include: {
       tutor: {
@@ -196,6 +242,8 @@ const getStudentBookings = async (studentId: string) => {
     },
     orderBy: { dateTime: "desc" },
   });
+
+  return attachPaymentsToBookings(bookings);
 };
 
 const getTutorBookings = async (tutorId: string) => {
@@ -207,7 +255,7 @@ const getTutorBookings = async (tutorId: string) => {
     throw new Error("Tutor profile not found");
   }
 
-  return await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     where: { tutorId: tutorProfile.id },
     include: {
       student: {
@@ -229,6 +277,8 @@ const getTutorBookings = async (tutorId: string) => {
     },
     orderBy: { dateTime: "desc" },
   });
+
+  return attachPaymentsToBookings(bookings);
 };
 
 const getSingleBooking = async (
@@ -287,7 +337,8 @@ const getSingleBooking = async (
     }
   }
 
-  return booking;
+  const [bookingWithPayment] = await attachPaymentsToBookings([booking]);
+  return bookingWithPayment;
 };
 
 const updateBookingStatus = async (
@@ -318,6 +369,10 @@ const updateBookingStatus = async (
   }
 
   if (role === "ADMIN") {
+    if (status === "CONFIRMED") {
+      await ensureBookingPaymentPaid(bookingId);
+    }
+
     return await prisma.booking.update({
       where: { id: bookingId },
       data: { status },
@@ -339,6 +394,9 @@ const updateBookingStatus = async (
       if (booking.status !== "PENDING") {
         throw new Error("Only pending bookings can be confirmed");
       }
+
+      await ensureBookingPaymentPaid(bookingId);
+
       return await prisma.booking.update({
         where: { id: bookingId },
         data: { status: "CONFIRMED" },
@@ -360,7 +418,7 @@ const updateBookingStatus = async (
 };
 
 const getAllBookings = async () => {
-  return await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     include: {
       student: {
         select: {
@@ -393,6 +451,8 @@ const getAllBookings = async () => {
     },
     orderBy: { createdAt: "desc" },
   });
+
+  return attachPaymentsToBookings(bookings);
 };
 
 export const BookingService = {
@@ -403,4 +463,5 @@ export const BookingService = {
   getSingleBooking,
   updateBookingStatus,
   getAllBookings,
+  attachPaymentsToBookings,
 };

@@ -5,6 +5,7 @@ import {
   getValidCategorySubjects,
   syncTutorCategories,
 } from "../../utils/tutorCategorySync";
+import { BookingService } from "../bookings/booking.service";
 
 const getAllUsers = async () => {
   return await prisma.user.findMany({
@@ -144,7 +145,7 @@ const updateUserStatus = async (
 };
 
 const getAllBookings = async () => {
-  return await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     include: {
       student: {
         select: {
@@ -177,6 +178,8 @@ const getAllBookings = async () => {
     },
     orderBy: { createdAt: "desc" },
   });
+
+  return BookingService.attachPaymentsToBookings(bookings);
 };
 
 const getDashboardStats = async () => {
