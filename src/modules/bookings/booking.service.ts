@@ -14,14 +14,14 @@ const ACTIVE_BOOKING_STATUSES = [
   BookingStatus.CONFIRMED,
 ] as const;
 
-const createBooking = async (
+const validateBookingRequest = async (
   studentId: string,
   payload: CreateBookingPayload,
 ) => {
   const tutor = await prisma.tutorProfile.findUnique({
     where: { id: payload.tutorId },
     include: {
-      user: { select: { status: true } },
+      user: { select: { name: true, status: true } },
     },
   });
 
@@ -46,7 +46,7 @@ const createBooking = async (
         status: "ACTIVE",
       },
     },
-    select: { id: true },
+    select: { id: true, title: true },
   });
 
   if (!course) {
@@ -73,6 +73,33 @@ const createBooking = async (
   if (bookingDate <= new Date()) {
     throw new Error("Booking date must be in the future");
   }
+
+  const conflicting = await prisma.booking.findFirst({
+    where: {
+      tutorId: payload.tutorId,
+      dateTime: bookingDate,
+      status: { in: [...ACTIVE_BOOKING_STATUSES] },
+    },
+  });
+
+  if (conflicting) {
+    throw new Error("This time slot is already booked");
+  }
+
+  return {
+    tutor,
+    course,
+    slot,
+    bookingDate,
+    amount: tutor.price,
+  };
+};
+
+const createBooking = async (
+  studentId: string,
+  payload: CreateBookingPayload,
+) => {
+  const { bookingDate } = await validateBookingRequest(studentId, payload);
 
   try {
     const result = await prisma.$transaction(
@@ -370,6 +397,7 @@ const getAllBookings = async () => {
 
 export const BookingService = {
   createBooking,
+  validateBookingRequest,
   getStudentBookings,
   getTutorBookings,
   getSingleBooking,

@@ -1,14 +1,14 @@
 # SkillBridge Server
 
-Backend for the Assignment 4 SkillBridge full-stack project.
+Backend for the Assignment 5 SkillBridge full-stack project.
 
 ## Live Links
 
-Frontend Repo    : `https://github.com/zabirarkam27/level2-assignment04-skill-bridge-client`
-Backend Repo     : `https://github.com/zabirarkam27/level2-assignment04-skill-bridge-server`
-Frontend Live    : `https://skill-bridge-client-two-beta.vercel.app/`
-Backend Live     : `https://skill-bridge-server-tan.vercel.app/`
-Demo Video       : `https://drive.google.com/file/d/1eSWTzs7AbmhB9P2nNIkrv_M_C003kcoB/view`
+Frontend Repo : `https://github.com/zabirarkam27/level2-assignment04-skill-bridge-client`
+Backend Repo : `https://github.com/zabirarkam27/level2-assignment04-skill-bridge-server`
+Frontend Live : `https://skill-bridge-client-two-beta.vercel.app/`
+Backend Live : `https://skill-bridge-server-tan.vercel.app/`
+Demo Video : `https://drive.google.com/file/d/1eSWTzs7AbmhB9P2nNIkrv_M_C003kcoB/view`
 
 ## Admin Credentials
 
@@ -35,6 +35,9 @@ Run `npm run db:seed:admin` after `npm run db:push` to create/update this admin 
 - `APP_USER` and `APP_PASSWORD`: SMTP credentials.
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`: Google OAuth credentials.
 - `CLOUDINARY_*`: Cloudinary image upload credentials.
+- `API_PUBLIC_URL`: public backend URL used for payment callbacks.
+- `STRIPE_SECRET_KEY`: Stripe secret key used to create checkout sessions.
+- `STRIPE_CURRENCY`: payment currency, defaults to `bdt`.
 - `ADMIN_PASSWORD`: password used by the admin seed script.
 
 ## API Areas
@@ -47,7 +50,11 @@ Run `npm run db:seed:admin` after `npm run db:push` to create/update this admin 
 - Courses: `/courses`
 - Availability: `/availability`
 - Admin: `/admin`
+- Payments: `/payments`
 
 ## Payment Rule
 
-No online payment gateway is integrated. Bookings follow the no-online-payment / Cash on Delivery requirement.
+Stripe Checkout is integrated before booking creation. Students select a tutor,
+course, availability slot, and date, then pay through Stripe. The booking is
+created only after Stripe confirms the checkout session as paid, and the tutor
+can confirm the paid pending booking afterward.

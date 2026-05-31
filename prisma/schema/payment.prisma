@@ -1,0 +1,24 @@
+model Payment {
+  id                   String        @id @default(uuid())
+  transactionId        String        @unique
+  gateway              String        @default("STRIPE")
+  status               PaymentStatus @default(INITIATED)
+  amount               Int
+  currency             String        @default("bdt")
+  studentId            String
+  tutorId              String
+  courseId             String
+  availabilityId       String
+  date                 String
+  bookingId            String?       @unique
+  gatewayTransactionId String?
+  validationId         String?
+  gatewayPayload       Json?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([studentId])
+  @@index([tutorId])
+  @@index([courseId])
+  @@index([status])
+}

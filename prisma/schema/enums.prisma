@@ -23,3 +23,10 @@ enum CourseDeleteRequestStatus {
   APPROVED
   REJECTED
 }
+
+enum PaymentStatus {
+  INITIATED
+  PAID
+  FAILED
+  CANCELLED
+}

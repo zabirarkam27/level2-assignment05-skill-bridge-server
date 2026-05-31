@@ -10,6 +10,7 @@ import errorHandler from "./middlewares/globalErrorHandler";
 import app from "./app";
 import { userRouter } from "./modules/users/user.routes";
 import { uploadRouter } from "./modules/upload/upload.routes";
+import { paymentRouter } from "./modules/payments/payment.routes";
 
 app.use("/categories", categoryRouter);
 app.use("/courses", courseRouter);
@@ -20,6 +21,7 @@ app.use("/reviews", reviewRouter);
 app.use("/availability", availabilityRouter);
 app.use("/users", userRouter);
 app.use("/upload", uploadRouter);
+app.use("/payments", paymentRouter);
 
 app.use(notFound);
 app.use(errorHandler);

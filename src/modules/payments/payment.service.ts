@@ -1,0 +1,248 @@
+import Stripe from "stripe";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../../lib/prisma";
+import { BookingService } from "../bookings/booking.service";
+import { InitiatePaymentPayload } from "./payment.validation";
+
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  "bif",
+  "clp",
+  "djf",
+  "gnf",
+  "jpy",
+  "kmf",
+  "krw",
+  "mga",
+  "pyg",
+  "rwf",
+  "ugx",
+  "vnd",
+  "vuv",
+  "xaf",
+  "xof",
+  "xpf",
+]);
+
+const getApiBaseUrl = () =>
+  process.env.API_PUBLIC_URL ||
+  process.env.BETTER_AUTH_URL ||
+  "http://localhost:5000";
+
+const getFrontendUrl = () => process.env.APP_URL || "http://localhost:3000";
+
+const getStripe = () => {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+
+  if (!secretKey) {
+    throw new Error("Stripe secret key is not configured");
+  }
+
+  return new Stripe(secretKey);
+};
+
+const getCurrency = () =>
+  (process.env.STRIPE_CURRENCY || "bdt").trim().toLowerCase();
+
+const toStripeUnitAmount = (amount: number, currency: string) =>
+  ZERO_DECIMAL_CURRENCIES.has(currency) ? amount : amount * 100;
+
+const buildTransactionId = () =>
+  `SB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
+
+const initiatePayment = async (
+  studentId: string,
+  payload: InitiatePaymentPayload,
+) => {
+  const stripe = getStripe();
+  const currency = getCurrency();
+  const { tutor, course, amount } = await BookingService.validateBookingRequest(
+    studentId,
+    payload,
+  );
+  const student = await prisma.user.findUnique({
+    where: { id: studentId },
+    select: { name: true, email: true },
+  });
+
+  if (!student) {
+    throw new Error("Student not found");
+  }
+
+  const transactionId = buildTransactionId();
+  const payment = await prisma.payment.create({
+    data: {
+      transactionId,
+      gateway: "STRIPE",
+      amount,
+      currency,
+      studentId,
+      tutorId: payload.tutorId,
+      courseId: payload.courseId,
+      availabilityId: payload.availabilityId,
+      date: payload.date,
+    },
+  });
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer_email: student.email,
+    success_url: `${getApiBaseUrl()}/payments/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${getApiBaseUrl()}/payments/cancel?payment_id=${payment.id}`,
+    metadata: {
+      paymentId: payment.id,
+      transactionId,
+      studentId,
+      tutorProfileId: payload.tutorId,
+      tutorUserId: tutor.userId,
+      courseId: payload.courseId,
+      availabilityId: payload.availabilityId,
+      date: payload.date,
+    },
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency,
+          unit_amount: toStripeUnitAmount(amount, currency),
+          product_data: {
+            name: course.title,
+            description: `SkillBridge session with ${tutor.user?.name ?? "Tutor"}`,
+          },
+        },
+      },
+    ],
+  });
+
+  await prisma.payment.update({
+    where: { id: payment.id },
+    data: {
+      gatewayTransactionId: session.id,
+      gatewayPayload: session as unknown as Prisma.InputJsonValue,
+    },
+  });
+
+  if (!session.url) {
+    throw new Error("Stripe checkout URL was not returned");
+  }
+
+  return {
+    transactionId,
+    amount,
+    currency,
+    paymentUrl: session.url,
+    cancelUrl: `${getFrontendUrl()}/dashboard/bookings?payment=cancelled`,
+  };
+};
+
+const createBookingAfterPayment = async (sessionId: string) => {
+  const stripe = getStripe();
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+  if (session.payment_status !== "paid") {
+    throw new Error("Stripe payment is not completed");
+  }
+
+  const paymentId = session.metadata?.paymentId;
+  if (!paymentId) {
+    throw new Error("Payment record not found in Stripe metadata");
+  }
+
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+  });
+
+  if (!payment) {
+    throw new Error("Payment record not found");
+  }
+
+  if (payment.status === "PAID" && payment.bookingId) {
+    return await prisma.booking.findUnique({ where: { id: payment.bookingId } });
+  }
+
+  if (payment.status === "CANCELLED") {
+    throw new Error("Payment was cancelled");
+  }
+
+  if (payment.status === "FAILED") {
+    throw new Error("Payment failed");
+  }
+
+  const payload = {
+    tutorId: payment.tutorId,
+    courseId: payment.courseId,
+    availabilityId: payment.availabilityId,
+    date: payment.date,
+  };
+  const { bookingDate } = await BookingService.validateBookingRequest(
+    payment.studentId,
+    payload,
+  );
+
+  return await prisma.$transaction(
+    async (tx) => {
+      const existingPayment = await tx.payment.findUnique({
+        where: { id: payment.id },
+      });
+
+      if (existingPayment?.bookingId) {
+        return await tx.booking.findUnique({
+          where: { id: existingPayment.bookingId },
+        });
+      }
+
+      const conflicting = await tx.booking.findFirst({
+        where: {
+          tutorId: payment.tutorId,
+          dateTime: bookingDate,
+          status: { in: ["PENDING", "CONFIRMED"] },
+        },
+      });
+
+      if (conflicting) {
+        throw new Error("This time slot is already booked");
+      }
+
+      const booking = await tx.booking.create({
+        data: {
+          studentId: payment.studentId,
+          tutorId: payment.tutorId,
+          courseId: payment.courseId,
+          dateTime: bookingDate,
+          status: "PENDING",
+        },
+      });
+
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: "PAID",
+          bookingId: booking.id,
+          gatewayTransactionId: session.id,
+          validationId: session.payment_intent?.toString() ?? null,
+          gatewayPayload: session as unknown as Prisma.InputJsonValue,
+        },
+      });
+
+      return booking;
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+};
+
+const markPaymentCancelled = async (paymentId?: string) => {
+  if (!paymentId) return null;
+
+  return await prisma.payment.updateMany({
+    where: {
+      id: paymentId,
+      status: "INITIATED",
+    },
+    data: { status: "CANCELLED" },
+  });
+};
+
+export const PaymentService = {
+  initiatePayment,
+  createBookingAfterPayment,
+  markPaymentCancelled,
+};
