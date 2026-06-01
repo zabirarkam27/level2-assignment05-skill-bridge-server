@@ -8,6 +8,7 @@ import {
   buildSessionDateTime,
   dayOfWeekFromDateString,
 } from "../../helpers/booking.helpers";
+import { CertificateService } from "../certificates/certificate.service";
 
 const ACTIVE_BOOKING_STATUSES = [
   BookingStatus.PENDING,
@@ -373,10 +374,16 @@ const updateBookingStatus = async (
       await ensureBookingPaymentPaid(bookingId);
     }
 
-    return await prisma.booking.update({
+    const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: { status },
     });
+
+    if (status === "COMPLETED" && updatedBooking.courseId) {
+      await CertificateService.issueForCompletedBooking(bookingId);
+    }
+
+    return updatedBooking;
   }
 
   if (status === "CANCELLED" && role === "STUDENT") {
@@ -407,10 +414,16 @@ const updateBookingStatus = async (
       if (booking.status !== "CONFIRMED") {
         throw new Error("Only confirmed sessions can be marked as completed");
       }
-      return await prisma.booking.update({
+      const completedBooking = await prisma.booking.update({
         where: { id: bookingId },
         data: { status: "COMPLETED" },
       });
+
+      if (completedBooking.courseId) {
+        await CertificateService.issueForCompletedBooking(bookingId);
+      }
+
+      return completedBooking;
     }
   }
 

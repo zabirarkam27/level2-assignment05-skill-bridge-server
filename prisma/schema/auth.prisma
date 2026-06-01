@@ -18,6 +18,7 @@ model User {
   sessions          Session[]
   accounts          Account[]
   assignedCourses   Course[]      @relation("AssignedTutorCourses")
+  certificates       Certificate[]
 
   @@map("user")
 }

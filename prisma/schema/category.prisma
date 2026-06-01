@@ -25,6 +25,7 @@ model Course {
   tutor     User?    @relation("AssignedTutorCourses", fields: [tutorId], references: [id])
   bookings  Booking[]
   deleteRequests CourseDeleteRequest[]
+  certificates Certificate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
