@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import { CreateReviewPayload } from "./review.validation";
+import { NotificationService } from "../notifications/notification.service";
 
 const createReview = async (
   studentId: string,
@@ -69,6 +70,15 @@ const createReview = async (
     });
 
     return review;
+  });
+
+  await NotificationService.createNotification({
+    userId: result.booking.tutor.user.id,
+    title: "New Review Received",
+    message: `${result.booking.student.name} left a review`,
+    type: "NEW_REVIEW",
+    link: "/tutor/reviews",
+    entityId: result.id,
   });
 
   return result;

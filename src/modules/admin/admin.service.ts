@@ -6,6 +6,7 @@ import {
   syncTutorCategories,
 } from "../../utils/tutorCategorySync";
 import { BookingService } from "../bookings/booking.service";
+import { NotificationService } from "../notifications/notification.service";
 
 const getAllUsers = async () => {
   return await prisma.user.findMany({
@@ -397,11 +398,22 @@ const approveTutor = async (userId: string) => {
   if (user.status !== UserStatus.PENDING)
     throw new Error("User is not pending approval");
 
-  return await prisma.user.update({
+  const approvedUser = await prisma.user.update({
     where: { id: userId },
     data: { status: UserStatus.ACTIVE },
     select: { id: true, name: true, email: true, role: true, status: true },
   });
+
+  await NotificationService.createNotification({
+    userId,
+    title: "Tutor Request Approved",
+    message: "You are now an approved tutor on SkillBridge",
+    type: "TUTOR_REQUEST_APPROVED",
+    link: "/tutor/dashboard",
+    entityId: userId,
+  });
+
+  return approvedUser;
 };
 
 const rejectTutor = async (userId: string) => {
@@ -411,11 +423,22 @@ const rejectTutor = async (userId: string) => {
   if (user.status !== UserStatus.PENDING)
     throw new Error("User is not pending approval");
 
-  return await prisma.user.update({
+  const rejectedUser = await prisma.user.update({
     where: { id: userId },
     data: { status: UserStatus.REJECTED },
     select: { id: true, name: true, email: true, role: true, status: true },
   });
+
+  await NotificationService.createNotification({
+    userId,
+    title: "Tutor Request Rejected",
+    message: "Your tutor request was rejected. Please contact support for details.",
+    type: "TUTOR_REQUEST_REJECTED",
+    link: "/dashboard/profile",
+    entityId: userId,
+  });
+
+  return rejectedUser;
 };
 
 const deleteUser = async (userId: string) => {

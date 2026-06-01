@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma";
 import { CourseDeleteRequestStatus } from "@prisma/client";
 import { CreateCoursePayload, UpdateCoursePayload } from "./course.validation";
+import { NotificationService } from "../notifications/notification.service";
 
 const courseInclude = {
   category: {
@@ -146,7 +147,7 @@ const createCourse = async (
 
   await ensureTutorHasCategory(tutorId, payload.categoryId);
 
-  return db.course.create({
+  const course = await db.course.create({
     data: {
       title: payload.title,
       description: payload.description || null,
@@ -157,6 +158,19 @@ const createCourse = async (
     },
     include: courseInclude,
   });
+
+  if (role === "ADMIN") {
+    await NotificationService.createNotification({
+      userId: tutorId,
+      title: "Course Assigned",
+      message: `You have been assigned as instructor for ${course.title}`,
+      type: "COURSE_ASSIGNED",
+      link: "/tutor/courses",
+      entityId: course.id,
+    });
+  }
+
+  return course;
 };
 
 const updateCourse = async (
@@ -186,7 +200,7 @@ const updateCourse = async (
 
   await ensureTutorHasCategory(nextTutorId, nextCategoryId);
 
-  return db.course.update({
+  const updatedCourse = await db.course.update({
     where: { id },
     data: {
       ...(payload.title !== undefined && { title: payload.title }),
@@ -203,6 +217,19 @@ const updateCourse = async (
     },
     include: courseInclude,
   });
+
+  if (role === "ADMIN" && tutorId !== undefined && tutorId !== course.tutorId) {
+    await NotificationService.createNotification({
+      userId: tutorId,
+      title: "Course Assigned",
+      message: `You have been assigned as instructor for ${updatedCourse.title}`,
+      type: "COURSE_ASSIGNED",
+      link: "/tutor/courses",
+      entityId: updatedCourse.id,
+    });
+  }
+
+  return updatedCourse;
 };
 
 const deleteCourse = async (id: string, userId: string, role: string) => {
@@ -267,6 +294,14 @@ const requestCourseDelete = async (
     },
   });
 
+  await NotificationService.notifyAdmins({
+    title: "Course Delete Request",
+    message: `${request.requester.name} requested to delete ${request.course.title}`,
+    type: "COURSE_DELETE_REQUEST",
+    link: "/admin/courses",
+    entityId: request.id,
+  });
+
   return {
     message: "Delete request sent to admin for approval",
     data: request,
@@ -293,6 +328,9 @@ const resolveDeleteRequest = async (
 ) => {
   const request = await prisma.courseDeleteRequest.findUnique({
     where: { id: requestId },
+    include: {
+      course: { select: { title: true } },
+    },
   });
 
   if (!request) throw new Error("Delete request not found");
@@ -302,7 +340,7 @@ const resolveDeleteRequest = async (
   }
 
   if (action === "REJECTED") {
-    return prisma.courseDeleteRequest.update({
+    const rejected = await prisma.courseDeleteRequest.update({
       where: { id: requestId },
       data: {
         status: CourseDeleteRequestStatus.REJECTED,
@@ -310,9 +348,20 @@ const resolveDeleteRequest = async (
         resolvedAt: new Date(),
       },
     });
+
+    await NotificationService.createNotification({
+      userId: request.requesterId,
+      title: "Course Delete Rejected",
+      message: `Your delete request for ${request.course.title} was rejected`,
+      type: "COURSE_DELETE_REJECTED",
+      link: "/tutor/courses",
+      entityId: request.id,
+    });
+
+    return rejected;
   }
 
-  return prisma.$transaction(async (tx) => {
+  const approved = await prisma.$transaction(async (tx) => {
     await tx.booking.updateMany({
       where: { courseId: request.courseId },
       data: { courseId: null },
@@ -330,6 +379,17 @@ const resolveDeleteRequest = async (
     await tx.course.delete({ where: { id: request.courseId } });
     return resolved;
   });
+
+  await NotificationService.createNotification({
+    userId: request.requesterId,
+    title: "Course Delete Approved",
+    message: `Your delete request for ${request.course.title} was approved`,
+    type: "COURSE_DELETE_APPROVED",
+    link: "/tutor/courses",
+    entityId: request.id,
+  });
+
+  return approved;
 };
 
 const togglePopular = async (id: string, isPopular: boolean) => {

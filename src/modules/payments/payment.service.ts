@@ -179,7 +179,7 @@ const createBookingAfterPayment = async (sessionId: string) => {
     payload,
   );
 
-  return await prisma.$transaction(
+  const booking = await prisma.$transaction(
     async (tx) => {
       const existingPayment = await tx.payment.findUnique({
         where: { id: payment.id },
@@ -228,6 +228,12 @@ const createBookingAfterPayment = async (sessionId: string) => {
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
+
+  if (booking?.id) {
+    await BookingService.notifyBookingCreated(booking.id);
+  }
+
+  return booking;
 };
 
 const markPaymentCancelled = async (paymentId?: string) => {

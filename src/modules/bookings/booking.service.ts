@@ -9,6 +9,7 @@ import {
   dayOfWeekFromDateString,
 } from "../../helpers/booking.helpers";
 import { CertificateService } from "../certificates/certificate.service";
+import { NotificationService } from "../notifications/notification.service";
 
 const ACTIVE_BOOKING_STATUSES = [
   BookingStatus.PENDING,
@@ -59,6 +60,35 @@ const ensureBookingPaymentPaid = async (bookingId: string) => {
   if (payment?.status !== "PAID") {
     throw new Error("Payment must be completed before confirming this booking");
   }
+};
+
+const getBookingNotificationContext = async (bookingId: string) => {
+  return prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      student: { select: { id: true, name: true } },
+      tutor: {
+        include: {
+          user: { select: { id: true, name: true } },
+        },
+      },
+      course: { select: { id: true, title: true } },
+    },
+  });
+};
+
+const notifyBookingCreated = async (bookingId: string) => {
+  const booking = await getBookingNotificationContext(bookingId);
+  if (!booking) return null;
+
+  return NotificationService.createNotification({
+    userId: booking.tutor.userId,
+    title: "New Booking Request",
+    message: `${booking.student.name} booked ${booking.course?.title ?? "a session"}`,
+    type: "BOOKING_CREATED",
+    link: "/tutor/sessions",
+    entityId: booking.id,
+  });
 };
 
 const validateBookingRequest = async (
@@ -202,6 +232,8 @@ const createBooking = async (
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+
+    await notifyBookingCreated(result.id);
 
     return result;
   } catch (error) {
@@ -379,8 +411,40 @@ const updateBookingStatus = async (
       data: { status },
     });
 
+    if (status === "CONFIRMED") {
+      await NotificationService.createNotification({
+        userId: updatedBooking.studentId,
+        title: "Booking Confirmed",
+        message: "Your booking has been confirmed",
+        type: "BOOKING_CONFIRMED",
+        link: "/dashboard/bookings",
+        entityId: updatedBooking.id,
+      });
+    }
+
+    if (status === "CANCELLED") {
+      await NotificationService.createNotifications([
+        {
+          userId: updatedBooking.studentId,
+          title: "Booking Cancelled",
+          message: "Your booking was cancelled",
+          type: "BOOKING_CANCELLED",
+          link: "/dashboard/bookings",
+          entityId: updatedBooking.id,
+        },
+      ]);
+    }
+
     if (status === "COMPLETED" && updatedBooking.courseId) {
       await CertificateService.issueForCompletedBooking(bookingId);
+      await NotificationService.createNotification({
+        userId: updatedBooking.studentId,
+        title: "Session Completed",
+        message: "You can now leave a review and download your certificate",
+        type: "SESSION_COMPLETED",
+        link: "/dashboard/bookings",
+        entityId: updatedBooking.id,
+      });
     }
 
     return updatedBooking;
@@ -393,6 +457,20 @@ const updateBookingStatus = async (
     return await prisma.booking.update({
       where: { id: bookingId },
       data: { status: "CANCELLED" },
+    }).then(async (cancelledBooking) => {
+      const context = await getBookingNotificationContext(cancelledBooking.id);
+      if (context) {
+        await NotificationService.createNotification({
+          userId: context.tutor.userId,
+          title: "Booking Cancelled",
+          message: `${context.student.name} cancelled the booking`,
+          type: "BOOKING_CANCELLED",
+          link: "/tutor/sessions",
+          entityId: cancelledBooking.id,
+        });
+      }
+
+      return cancelledBooking;
     });
   }
 
@@ -404,10 +482,21 @@ const updateBookingStatus = async (
 
       await ensureBookingPaymentPaid(bookingId);
 
-      return await prisma.booking.update({
+      const confirmedBooking = await prisma.booking.update({
         where: { id: bookingId },
         data: { status: "CONFIRMED" },
       });
+
+      await NotificationService.createNotification({
+        userId: confirmedBooking.studentId,
+        title: "Booking Confirmed",
+        message: "Your booking has been confirmed",
+        type: "BOOKING_CONFIRMED",
+        link: "/dashboard/bookings",
+        entityId: confirmedBooking.id,
+      });
+
+      return confirmedBooking;
     }
 
     if (status === "COMPLETED") {
@@ -422,6 +511,15 @@ const updateBookingStatus = async (
       if (completedBooking.courseId) {
         await CertificateService.issueForCompletedBooking(bookingId);
       }
+
+      await NotificationService.createNotification({
+        userId: completedBooking.studentId,
+        title: "Session Completed",
+        message: "You can now leave a review and download your certificate",
+        type: "SESSION_COMPLETED",
+        link: "/dashboard/bookings",
+        entityId: completedBooking.id,
+      });
 
       return completedBooking;
     }
@@ -477,4 +575,5 @@ export const BookingService = {
   updateBookingStatus,
   getAllBookings,
   attachPaymentsToBookings,
+  notifyBookingCreated,
 };
