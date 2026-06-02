@@ -45,3 +45,8 @@ enum NotificationType {
   TUTOR_REQUEST_REJECTED
   SYSTEM
 }
+
+enum WishlistType {
+  COURSE
+  TUTOR
+}

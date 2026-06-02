@@ -13,6 +13,7 @@ model TutorProfile {
   reviews        Review[]
   availabilities Availability[]
   categories     TutorCategory[]
+  wishlists      Wishlist[]
 
   @@index([rating])
   @@index([price])

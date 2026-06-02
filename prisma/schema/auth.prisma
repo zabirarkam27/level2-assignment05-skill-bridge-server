@@ -20,6 +20,7 @@ model User {
   assignedCourses   Course[]      @relation("AssignedTutorCourses")
   certificates       Certificate[]
   notifications      Notification[]
+  wishlists          Wishlist[]
 
   @@map("user")
 }

@@ -33,6 +33,7 @@ const courseInclude = {
       createdAt: true,
     },
   },
+  _count: { select: { wishlists: true } },
 } as const;
 
 const db = prisma as any;

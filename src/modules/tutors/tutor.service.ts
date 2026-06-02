@@ -170,6 +170,7 @@ const getAllTutors = async (filters: TutorFilters = {}) => {
     include: {
       user: true,
       reviews: true,
+      _count: { select: { wishlists: true } },
     },
 
     orderBy: {
@@ -212,6 +213,7 @@ const getSingleTutor = async (id: string) => {
       },
       reviews: true,
       availabilities: true,
+      _count: { select: { wishlists: true } },
     },
   });
 };
