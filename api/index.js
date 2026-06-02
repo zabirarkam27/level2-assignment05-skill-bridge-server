@@ -317,6 +317,12 @@ var auth = betterAuth({
     google: {
       prompt: "select_account consent",
       accessType: "offline",
+      scope: [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/calendar"
+      ],
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET
     }
@@ -346,6 +352,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.all("/api/auth/*splat", toNodeHandler(auth));
 app.get("/", (req, res) => {
   res.send("SkillBridge API is running");
@@ -547,14 +554,14 @@ async function optimizeImageBuffer(input, preset) {
 async function tryEncode(pipeline, format, quality) {
   try {
     const encoder = format === "avif" ? pipeline.avif({ quality, effort: 2 }) : pipeline.webp({ quality, effort: 2, alphaQuality: quality });
-    const { data, info } = await encoder.toBuffer({ resolveWithObject: true });
+    const { data, info: info2 } = await encoder.toBuffer({ resolveWithObject: true });
     return {
       buffer: data,
       format,
       mimeType: format === "avif" ? "image/avif" : "image/webp",
       extension: format,
-      width: info.width,
-      height: info.height
+      width: info2.width,
+      height: info2.height
     };
   } catch {
     return null;
@@ -939,6 +946,91 @@ import { Router as Router2 } from "express";
 
 // src/modules/courses/course.service.ts
 import { CourseDeleteRequestStatus } from "@prisma/client";
+
+// src/modules/notifications/notification.service.ts
+var createNotification = async ({
+  userId,
+  title,
+  message,
+  type,
+  link,
+  entityId
+}) => {
+  return prisma.notification.create({
+    data: {
+      userId,
+      title,
+      message,
+      type,
+      link: link ?? null,
+      entityId: entityId ?? null
+    }
+  });
+};
+var createNotifications = async (notifications) => {
+  if (notifications.length === 0) return { count: 0 };
+  return prisma.notification.createMany({
+    data: notifications.map((notification) => ({
+      ...notification,
+      link: notification.link ?? null,
+      entityId: notification.entityId ?? null
+    }))
+  });
+};
+var notifyAdmins = async (payload) => {
+  const admins = await prisma.user.findMany({
+    where: { role: "ADMIN", status: "ACTIVE" },
+    select: { id: true }
+  });
+  return createNotifications(
+    admins.map((admin) => ({ ...payload, userId: admin.id }))
+  );
+};
+var getMyNotifications = async (userId) => {
+  return prisma.notification.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: 50
+  });
+};
+var markAsRead = async (notificationId, userId) => {
+  const notification = await prisma.notification.findFirst({
+    where: { id: notificationId, userId }
+  });
+  if (!notification) {
+    throw new Error("Notification not found");
+  }
+  return prisma.notification.update({
+    where: { id: notificationId },
+    data: { isRead: true }
+  });
+};
+var markAllAsRead = async (userId) => {
+  return prisma.notification.updateMany({
+    where: { userId, isRead: false },
+    data: { isRead: true }
+  });
+};
+var deleteNotification = async (notificationId, userId) => {
+  const notification = await prisma.notification.findFirst({
+    where: { id: notificationId, userId }
+  });
+  if (!notification) {
+    throw new Error("Notification not found");
+  }
+  return prisma.notification.delete({ where: { id: notificationId } });
+};
+var NotificationService = {
+  createNotification,
+  createNotifications,
+  notifyAdmins,
+  getMyNotifications,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification
+};
+
+// src/modules/courses/course.service.ts
 var courseInclude = {
   category: {
     select: { id: true, name: true, description: true, image: true }
@@ -968,7 +1060,8 @@ var courseInclude = {
       status: true,
       createdAt: true
     }
-  }
+  },
+  _count: { select: { wishlists: true } }
 };
 var db = prisma;
 var ensureTutorHasCategory = async (tutorId, categoryId) => {
@@ -1046,7 +1139,7 @@ var createCourse = async (createdById, role, payload) => {
     throw new Error("Please select a tutor for this course");
   }
   await ensureTutorHasCategory(tutorId, payload.categoryId);
-  return db.course.create({
+  const course = await db.course.create({
     data: {
       title: payload.title,
       description: payload.description || null,
@@ -1057,6 +1150,17 @@ var createCourse = async (createdById, role, payload) => {
     },
     include: courseInclude
   });
+  if (role === "ADMIN") {
+    await NotificationService.createNotification({
+      userId: tutorId,
+      title: "Course Assigned",
+      message: `You have been assigned as instructor for ${course.title}`,
+      type: "COURSE_ASSIGNED",
+      link: "/tutor/courses",
+      entityId: course.id
+    });
+  }
+  return course;
 };
 var updateCourse = async (id, userId, role, payload) => {
   const course = await db.course.findUnique({ where: { id } });
@@ -1074,7 +1178,7 @@ var updateCourse = async (id, userId, role, payload) => {
     throw new Error("Please select a tutor for this course");
   }
   await ensureTutorHasCategory(nextTutorId, nextCategoryId);
-  return db.course.update({
+  const updatedCourse = await db.course.update({
     where: { id },
     data: {
       ...payload.title !== void 0 && { title: payload.title },
@@ -1091,6 +1195,17 @@ var updateCourse = async (id, userId, role, payload) => {
     },
     include: courseInclude
   });
+  if (role === "ADMIN" && tutorId !== void 0 && tutorId !== course.tutorId) {
+    await NotificationService.createNotification({
+      userId: tutorId,
+      title: "Course Assigned",
+      message: `You have been assigned as instructor for ${updatedCourse.title}`,
+      type: "COURSE_ASSIGNED",
+      link: "/tutor/courses",
+      entityId: updatedCourse.id
+    });
+  }
+  return updatedCourse;
 };
 var deleteCourse = async (id, userId, role) => {
   const course = await db.course.findUnique({ where: { id } });
@@ -1141,6 +1256,13 @@ var requestCourseDelete = async (id, requesterId, role) => {
       }
     }
   });
+  await NotificationService.notifyAdmins({
+    title: "Course Delete Request",
+    message: `${request.requester.name} requested to delete ${request.course.title}`,
+    type: "COURSE_DELETE_REQUEST",
+    link: "/admin/courses",
+    entityId: request.id
+  });
   return {
     message: "Delete request sent to admin for approval",
     data: request
@@ -1160,14 +1282,17 @@ var getDeleteRequests = async () => {
 };
 var resolveDeleteRequest = async (requestId, adminId, action) => {
   const request = await prisma.courseDeleteRequest.findUnique({
-    where: { id: requestId }
+    where: { id: requestId },
+    include: {
+      course: { select: { title: true } }
+    }
   });
   if (!request) throw new Error("Delete request not found");
   if (request.status !== CourseDeleteRequestStatus.PENDING) {
     throw new Error("Delete request has already been resolved");
   }
   if (action === "REJECTED") {
-    return prisma.courseDeleteRequest.update({
+    const rejected = await prisma.courseDeleteRequest.update({
       where: { id: requestId },
       data: {
         status: CourseDeleteRequestStatus.REJECTED,
@@ -1175,8 +1300,17 @@ var resolveDeleteRequest = async (requestId, adminId, action) => {
         resolvedAt: /* @__PURE__ */ new Date()
       }
     });
+    await NotificationService.createNotification({
+      userId: request.requesterId,
+      title: "Course Delete Rejected",
+      message: `Your delete request for ${request.course.title} was rejected`,
+      type: "COURSE_DELETE_REJECTED",
+      link: "/tutor/courses",
+      entityId: request.id
+    });
+    return rejected;
   }
-  return prisma.$transaction(async (tx) => {
+  const approved = await prisma.$transaction(async (tx) => {
     await tx.booking.updateMany({
       where: { courseId: request.courseId },
       data: { courseId: null }
@@ -1192,6 +1326,15 @@ var resolveDeleteRequest = async (requestId, adminId, action) => {
     await tx.course.delete({ where: { id: request.courseId } });
     return resolved;
   });
+  await NotificationService.createNotification({
+    userId: request.requesterId,
+    title: "Course Delete Approved",
+    message: `Your delete request for ${request.course.title} was approved`,
+    type: "COURSE_DELETE_APPROVED",
+    link: "/tutor/courses",
+    entityId: request.id
+  });
+  return approved;
 };
 var togglePopular = async (id, isPopular) => {
   const course = await db.course.findUnique({ where: { id } });
@@ -1606,7 +1749,8 @@ var getAllTutors = async (filters = {}) => {
     },
     include: {
       user: true,
-      reviews: true
+      reviews: true,
+      _count: { select: { wishlists: true } }
     },
     orderBy: {
       rating: "desc"
@@ -1645,7 +1789,8 @@ var getSingleTutor = async (id) => {
         }
       },
       reviews: true,
-      availabilities: true
+      availabilities: true,
+      _count: { select: { wishlists: true } }
     }
   });
 };
@@ -1710,6 +1855,14 @@ var createReview = async (studentId, payload) => {
       data: { rating: avgRating }
     });
     return review;
+  });
+  await NotificationService.createNotification({
+    userId: result.booking.tutor.user.id,
+    title: "New Review Received",
+    message: `${result.booking.student.name} left a review`,
+    type: "NEW_REVIEW",
+    link: "/tutor/reviews",
+    entityId: result.id
   });
   return result;
 };
@@ -2086,16 +2239,599 @@ function buildSessionDateTime(date, startTime) {
   return /* @__PURE__ */ new Date(`${date}T${startTime}:00`);
 }
 
+// src/modules/certificates/certificate.service.ts
+import crypto2 from "crypto";
+
+// src/modules/certificates/certificate.template.ts
+import QRCode from "qrcode";
+var escapePdfText = (text3) => String(text3).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+var safeText = (text3, maxLength = 92) => {
+  const normalized = String(text3 ?? "N/A").replace(/[^\x20-\x7E]/g, "");
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3)}...` : normalized || "N/A";
+};
+var text = (value, x, y, size = 12, font = "F1", maxLength = 92) => `BT /${font} ${size} Tf ${x} ${y} Td (${escapePdfText(
+  safeText(value, maxLength)
+)}) Tj ET`;
+var coloredText = (value, x, y, size, font, color, maxLength = 92) => `${color.join(" ")} rg
+${text(value, x, y, size, font, maxLength)}`;
+var estimateTextWidth = (value, size, font = "F1") => {
+  const weight = font === "F2" ? 0.58 : font === "F3" ? 0.5 : 0.52;
+  return safeText(value).length * size * weight;
+};
+var centeredText = (value, centerX, y, size, font, color, maxLength = 92) => {
+  const displayValue = safeText(value, maxLength);
+  const x = centerX - estimateTextWidth(displayValue, size, font) / 2;
+  return coloredText(displayValue, x, y, size, font, color, maxLength);
+};
+var rect = (x, y, width, height, color) => `${color.join(" ")} rg ${x} ${y} ${width} ${height} re f`;
+var line = (x1, y1, x2, y2, width, color) => `${color.join(" ")} RG ${width} w ${x1} ${y1} m ${x2} ${y2} l S`;
+var strokeRect = (x, y, width, height, lineWidth, color) => `${color.join(" ")} RG ${lineWidth} w ${x} ${y} ${width} ${height} re S`;
+var renderQrCode = (value, x, y, size = 86) => {
+  const qr = QRCode.create(value, { errorCorrectionLevel: "M" });
+  const cells = qr.modules.size;
+  const cell = size / cells;
+  const blocks = [rect(x, y, size, size, [1, 1, 1])];
+  for (let row = 0; row < cells; row += 1) {
+    for (let col = 0; col < cells; col += 1) {
+      const isDark = Boolean(qr.modules.data[row * cells + col]);
+      if (isDark) {
+        blocks.push(
+          rect(
+            x + col * cell,
+            y + (cells - row - 1) * cell,
+            cell + 0.15,
+            cell + 0.15,
+            [0.02, 0.04, 0.08]
+          )
+        );
+      }
+    }
+  }
+  blocks.push(strokeRect(x, y, size, size, 1.2, [0.88, 0.72, 0.32]));
+  return blocks.join("\n");
+};
+var buildPdf = (contentLines) => {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 4 0 R /F2 6 0 R /F3 7 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(
+      contentLines,
+      "utf8"
+    )} >>
+stream
+${contentLines}
+endstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Times-Italic >>"
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(pdf, "utf8"));
+    pdf += `${index + 1} 0 obj
+${object}
+endobj
+`;
+  });
+  const xrefOffset = Buffer.byteLength(pdf, "utf8");
+  pdf += `xref
+0 ${objects.length + 1}
+`;
+  pdf += "0000000000 65535 f \n";
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n 
+`;
+  });
+  pdf += `trailer
+<< /Size ${objects.length + 1} /Root 1 0 R >>
+startxref
+${xrefOffset}
+%%EOF`;
+  return Buffer.from(pdf, "utf8");
+};
+function renderCertificatePdf(certificate) {
+  const issuedDate = new Date(certificate.issuedAt).toLocaleDateString(
+    "en-BD",
+    {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    }
+  );
+  const instructor = certificate.course.tutor?.name ?? "SkillBridge Instructor";
+  const category = certificate.course.category?.name ?? "Professional Learning";
+  const centerX = 421;
+  const contentLines = [
+    rect(0, 0, 842, 595, [0.98, 0.97, 0.93]),
+    strokeRect(28, 28, 786, 539, 2.5, [0.74, 0.52, 0.18]),
+    strokeRect(42, 42, 758, 511, 0.9, [0.86, 0.72, 0.36]),
+    rect(60, 505, 722, 2, [0.74, 0.52, 0.18]),
+    rect(60, 86, 722, 2, [0.74, 0.52, 0.18]),
+    centeredText("SkillBridge", centerX, 522, 25, "F2", [0.38, 0.12, 0.41], 32),
+    centeredText("Official SkillBridge Certification", centerX, 496, 10, "F1", [0.47, 0.38, 0.22], 48),
+    centeredText("Certificate of Completion", centerX, 436, 30, "F2", [0.05, 0.08, 0.16], 46),
+    centeredText("This certificate is proudly awarded to", centerX, 398, 12, "F1", [0.39, 0.45, 0.55], 54),
+    centeredText(certificate.student.name, centerX, 352, 34, "F3", [0.38, 0.12, 0.41], 42),
+    line(263, 336, 579, 336, 1, [0.78, 0.62, 0.26]),
+    centeredText("for successfully completing", centerX, 296, 12, "F1", [0.39, 0.45, 0.55], 48),
+    centeredText(certificate.course.title, centerX, 260, 23, "F2", [0.05, 0.08, 0.16], 52),
+    centeredText(category, centerX, 234, 11, "F1", [0.43, 0.29, 0.09], 38),
+    coloredText("Issued Date", 112, 160, 9, "F2", [0.39, 0.45, 0.55], 24),
+    coloredText(issuedDate, 112, 140, 12, "F2", [0.05, 0.08, 0.16], 34),
+    coloredText("Certificate No", 356, 160, 9, "F2", [0.39, 0.45, 0.55], 24),
+    coloredText(certificate.certificateNo, 356, 140, 12, "F2", [0.05, 0.08, 0.16], 36),
+    coloredText("Instructor", 624, 160, 9, "F2", [0.39, 0.45, 0.55], 24),
+    coloredText(instructor, 624, 140, 12, "F2", [0.05, 0.08, 0.16], 32),
+    line(612, 130, 748, 130, 1, [0.78, 0.62, 0.26]),
+    renderQrCode(certificate.verificationUrl, 664, 412, 76),
+    centeredText("Scan to Verify", 702, 397, 8, "F2", [0.39, 0.45, 0.55], 20),
+    coloredText(certificate.verificationUrl, 542, 65, 8, "F1", [0.39, 0.45, 0.55], 58)
+  ].join("\n");
+  return buildPdf(contentLines);
+}
+
+// src/modules/certificates/certificate.service.ts
+var certificateInclude = {
+  student: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true
+    }
+  },
+  course: {
+    include: {
+      category: {
+        select: {
+          id: true,
+          name: true
+        }
+      },
+      tutor: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          image: true
+        }
+      }
+    }
+  }
+};
+var getFrontendUrl = () => process.env.APP_URL || "http://localhost:3000";
+var buildVerificationUrl = (certificateNo) => `${getFrontendUrl()}/certificate/${encodeURIComponent(certificateNo)}`;
+var createCertificateNo = () => `SKILLBRIDGE-${crypto2.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+var issueCertificate = async (studentId, courseId) => {
+  const existing = await prisma.certificate.findUnique({
+    where: {
+      studentId_courseId: {
+        studentId,
+        courseId
+      }
+    },
+    include: certificateInclude
+  });
+  if (existing) {
+    return existing;
+  }
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await prisma.certificate.create({
+        data: {
+          studentId,
+          courseId,
+          certificateNo: createCertificateNo()
+        },
+        include: certificateInclude
+      });
+    } catch (error) {
+      if (error?.code !== "P2002") {
+        throw error;
+      }
+    }
+  }
+  throw new Error("Could not generate a unique certificate number");
+};
+var issueForCompletedBooking = async (bookingId) => {
+  const booking = await prisma.booking.findUnique({
+    where: { id: bookingId },
+    select: {
+      studentId: true,
+      courseId: true,
+      status: true
+    }
+  });
+  if (!booking) {
+    throw new Error("Booking not found");
+  }
+  if (booking.status !== "COMPLETED") {
+    throw new Error("Certificate can only be issued for completed bookings");
+  }
+  if (!booking.courseId) {
+    throw new Error("This booking has no course assigned");
+  }
+  return issueCertificate(booking.studentId, booking.courseId);
+};
+var getCertificateByCourse = async (studentId, courseId) => {
+  const certificate = await prisma.certificate.findUnique({
+    where: {
+      studentId_courseId: {
+        studentId,
+        courseId
+      }
+    },
+    include: certificateInclude
+  });
+  if (certificate) {
+    return certificate;
+  }
+  const completedBooking = await prisma.booking.findFirst({
+    where: {
+      studentId,
+      courseId,
+      status: "COMPLETED"
+    },
+    select: { id: true }
+  });
+  if (!completedBooking) {
+    throw new Error("Complete this course before downloading a certificate");
+  }
+  return issueCertificate(studentId, courseId);
+};
+var getCertificateById = async (id, userId, role) => {
+  const certificate = await prisma.certificate.findUnique({
+    where: { id },
+    include: certificateInclude
+  });
+  if (!certificate) {
+    throw new Error("Certificate not found");
+  }
+  if (role === "STUDENT" && certificate.studentId !== userId) {
+    throw new Error("Unauthorized");
+  }
+  if (role === "TUTOR" && certificate.course.tutorId !== userId) {
+    throw new Error("Unauthorized");
+  }
+  return certificate;
+};
+var getCertificateByNumber = async (certificateNo) => {
+  const certificate = await prisma.certificate.findUnique({
+    where: { certificateNo },
+    include: certificateInclude
+  });
+  if (!certificate) {
+    throw new Error("Certificate not found");
+  }
+  return certificate;
+};
+var getCertificates = async (userId, role) => {
+  if (role === "ADMIN") {
+    return prisma.certificate.findMany({
+      include: certificateInclude,
+      orderBy: { issuedAt: "desc" }
+    });
+  }
+  if (role === "TUTOR") {
+    return prisma.certificate.findMany({
+      where: {
+        course: {
+          tutorId: userId
+        }
+      },
+      include: certificateInclude,
+      orderBy: { issuedAt: "desc" }
+    });
+  }
+  return prisma.certificate.findMany({
+    where: { studentId: userId },
+    include: certificateInclude,
+    orderBy: { issuedAt: "desc" }
+  });
+};
+var createCertificatePdf = async (certificateId, userId, role) => {
+  const certificate = await getCertificateById(certificateId, userId, role);
+  const buffer = renderCertificatePdf({
+    certificateNo: certificate.certificateNo,
+    issuedAt: certificate.issuedAt,
+    verificationUrl: buildVerificationUrl(certificate.certificateNo),
+    student: {
+      name: certificate.student.name
+    },
+    course: {
+      title: certificate.course.title,
+      tutor: {
+        name: certificate.course.tutor?.name ?? null
+      },
+      category: certificate.course.category
+    }
+  });
+  return {
+    filename: `skillbridge-certificate-${certificate.certificateNo}.pdf`,
+    buffer
+  };
+};
+var CertificateService = {
+  issueCertificate,
+  issueForCompletedBooking,
+  getCertificateByCourse,
+  getCertificateById,
+  getCertificateByNumber,
+  getCertificates,
+  createCertificatePdf,
+  buildVerificationUrl
+};
+
+// src/services/googleCalendar.service.ts
+import { randomUUID as randomUUID2 } from "crypto";
+import { google } from "googleapis";
+var CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
+var SESSION_DURATION_MINUTES = 60;
+var getRedirectUrl = () => {
+  if (process.env.GOOGLE_CALLBACK_URL) {
+    return process.env.GOOGLE_CALLBACK_URL;
+  }
+  const baseUrl = process.env.BETTER_AUTH_URL || "http://localhost:5000";
+  return `${baseUrl}/api/auth/callback/google`;
+};
+var getCalendarAccount = async (userId) => {
+  return prisma.account.findFirst({
+    where: {
+      userId,
+      providerId: "google",
+      OR: [{ accessToken: { not: null } }, { refreshToken: { not: null } }]
+    },
+    select: {
+      id: true,
+      userId: true,
+      accessToken: true,
+      refreshToken: true,
+      scope: true
+    }
+  });
+};
+var hasCalendarAccess = (scope) => {
+  return Boolean(scope?.split(/\s+/).includes(CALENDAR_SCOPE));
+};
+var getCalendarClient = async (userId) => {
+  const account = await getCalendarAccount(userId);
+  if (!account || !hasCalendarAccess(account.scope)) {
+    return null;
+  }
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    getRedirectUrl()
+  );
+  oauth2Client.setCredentials({
+    access_token: account.accessToken ?? null,
+    refresh_token: account.refreshToken ?? null
+  });
+  return {
+    account,
+    oauth2Client,
+    calendar: google.calendar({ version: "v3", auth: oauth2Client })
+  };
+};
+var persistRefreshedTokens = async (accountId, credentials) => {
+  const data = {};
+  if (credentials.access_token) {
+    data.accessToken = credentials.access_token;
+  }
+  if (credentials.refresh_token) {
+    data.refreshToken = credentials.refresh_token;
+  }
+  if (Object.keys(data).length > 0) {
+    await prisma.account.update({
+      where: { id: accountId },
+      data
+    });
+  }
+};
+var createBookingCalendarEvent = async (bookingId) => {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        student: { select: { id: true, name: true, email: true } },
+        tutor: {
+          include: {
+            user: { select: { id: true, name: true, email: true } }
+          }
+        },
+        course: { select: { title: true } }
+      }
+    });
+    if (!booking || booking.status !== "CONFIRMED") {
+      return null;
+    }
+    if (booking.googleEventId) {
+      return booking;
+    }
+    const calendarClient = await getCalendarClient(booking.tutor.userId) ?? await getCalendarClient(booking.studentId);
+    if (!calendarClient) {
+      return null;
+    }
+    const startDate = new Date(booking.dateTime);
+    const endDate = new Date(
+      startDate.getTime() + SESSION_DURATION_MINUTES * 60 * 1e3
+    );
+    const courseTitle = booking.course?.title ?? "SkillBridge Session";
+    const event = await calendarClient.calendar.events.insert({
+      calendarId: "primary",
+      conferenceDataVersion: 1,
+      sendUpdates: "all",
+      requestBody: {
+        summary: `${courseTitle} Session`,
+        description: `SkillBridge tutor booking session.
+
+Student: ${booking.student.name}
+Tutor: ${booking.tutor.user.name}`,
+        start: {
+          dateTime: startDate.toISOString()
+        },
+        end: {
+          dateTime: endDate.toISOString()
+        },
+        attendees: [
+          { email: booking.student.email, displayName: booking.student.name },
+          {
+            email: booking.tutor.user.email,
+            displayName: booking.tutor.user.name
+          }
+        ],
+        conferenceData: {
+          createRequest: {
+            requestId: randomUUID2(),
+            conferenceSolutionKey: { type: "hangoutsMeet" }
+          }
+        },
+        reminders: {
+          useDefault: false,
+          overrides: [
+            { method: "email", minutes: 1440 },
+            { method: "popup", minutes: 60 },
+            { method: "popup", minutes: 15 }
+          ]
+        }
+      }
+    });
+    await persistRefreshedTokens(
+      calendarClient.account.id,
+      calendarClient.oauth2Client.credentials
+    );
+    return prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        googleEventId: event.data.id ?? null,
+        googleEventCreatorUserId: calendarClient.account.userId,
+        meetingLink: event.data.hangoutLink ?? null
+      }
+    });
+  } catch (error) {
+    console.error("Failed to create Google Calendar event", error);
+    return null;
+  }
+};
+var deleteBookingCalendarEvent = async (bookingId) => {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        googleEventId: true,
+        googleEventCreatorUserId: true
+      }
+    });
+    if (!booking?.googleEventId || !booking.googleEventCreatorUserId) {
+      return null;
+    }
+    const calendarClient = await getCalendarClient(
+      booking.googleEventCreatorUserId
+    );
+    if (!calendarClient) {
+      return null;
+    }
+    await calendarClient.calendar.events.delete({
+      calendarId: "primary",
+      eventId: booking.googleEventId,
+      sendUpdates: "all"
+    });
+    await persistRefreshedTokens(
+      calendarClient.account.id,
+      calendarClient.oauth2Client.credentials
+    );
+    return prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        googleEventId: null,
+        googleEventCreatorUserId: null,
+        meetingLink: null
+      }
+    });
+  } catch (error) {
+    console.error("Failed to delete Google Calendar event", error);
+    return null;
+  }
+};
+var GoogleCalendarService = {
+  createBookingCalendarEvent,
+  deleteBookingCalendarEvent
+};
+
 // src/modules/bookings/booking.service.ts
 var ACTIVE_BOOKING_STATUSES = [
   BookingStatus.PENDING,
   BookingStatus.CONFIRMED
 ];
-var createBooking = async (studentId, payload) => {
+var paymentSelect = {
+  id: true,
+  bookingId: true,
+  status: true,
+  gateway: true,
+  amount: true,
+  currency: true,
+  transactionId: true,
+  createdAt: true
+};
+var attachPaymentsToBookings = async (bookings) => {
+  if (bookings.length === 0) {
+    return bookings.map((booking) => ({ ...booking, payment: null }));
+  }
+  const payments = await prisma.payment.findMany({
+    where: { bookingId: { in: bookings.map((booking) => booking.id) } },
+    select: paymentSelect
+  });
+  const paymentByBookingId = new Map(
+    payments.filter((payment) => payment.bookingId).map((payment) => [payment.bookingId, payment])
+  );
+  return bookings.map((booking) => ({
+    ...booking,
+    payment: paymentByBookingId.get(booking.id) ?? null
+  }));
+};
+var ensureBookingPaymentPaid = async (bookingId) => {
+  const payment = await prisma.payment.findFirst({
+    where: { bookingId },
+    select: { status: true }
+  });
+  if (payment?.status !== "PAID") {
+    throw new Error("Payment must be completed before confirming this booking");
+  }
+};
+var getBookingNotificationContext = async (bookingId) => {
+  return prisma.booking.findUnique({
+    where: { id: bookingId },
+    include: {
+      student: { select: { id: true, name: true } },
+      tutor: {
+        include: {
+          user: { select: { id: true, name: true } }
+        }
+      },
+      course: { select: { id: true, title: true } }
+    }
+  });
+};
+var notifyBookingCreated = async (bookingId) => {
+  const booking = await getBookingNotificationContext(bookingId);
+  if (!booking) return null;
+  return NotificationService.createNotification({
+    userId: booking.tutor.userId,
+    title: "New Booking Request",
+    message: `${booking.student.name} booked ${booking.course?.title ?? "a session"}`,
+    type: "BOOKING_CREATED",
+    link: "/tutor/sessions",
+    entityId: booking.id
+  });
+};
+var validateBookingRequest = async (studentId, payload) => {
   const tutor = await prisma.tutorProfile.findUnique({
     where: { id: payload.tutorId },
     include: {
-      user: { select: { status: true } }
+      user: { select: { name: true, status: true } }
     }
   });
   if (!tutor) {
@@ -2116,7 +2852,7 @@ var createBooking = async (studentId, payload) => {
         status: "ACTIVE"
       }
     },
-    select: { id: true }
+    select: { id: true, title: true }
   });
   if (!course) {
     throw new Error("Please select a valid course for this mentor");
@@ -2138,6 +2874,26 @@ var createBooking = async (studentId, payload) => {
   if (bookingDate <= /* @__PURE__ */ new Date()) {
     throw new Error("Booking date must be in the future");
   }
+  const conflicting = await prisma.booking.findFirst({
+    where: {
+      tutorId: payload.tutorId,
+      dateTime: bookingDate,
+      status: { in: [...ACTIVE_BOOKING_STATUSES] }
+    }
+  });
+  if (conflicting) {
+    throw new Error("This time slot is already booked");
+  }
+  return {
+    tutor,
+    course,
+    slot,
+    bookingDate,
+    amount: tutor.price
+  };
+};
+var createBooking = async (studentId, payload) => {
+  const { bookingDate } = await validateBookingRequest(studentId, payload);
   try {
     const result = await prisma.$transaction(
       async (tx) => {
@@ -2190,6 +2946,7 @@ var createBooking = async (studentId, payload) => {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
     );
+    await notifyBookingCreated(result.id);
     return result;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
@@ -2199,7 +2956,7 @@ var createBooking = async (studentId, payload) => {
   }
 };
 var getStudentBookings = async (studentId) => {
-  return await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     where: { studentId },
     include: {
       tutor: {
@@ -2225,6 +2982,7 @@ var getStudentBookings = async (studentId) => {
     },
     orderBy: { dateTime: "desc" }
   });
+  return attachPaymentsToBookings(bookings);
 };
 var getTutorBookings = async (tutorId) => {
   const tutorProfile = await prisma.tutorProfile.findUnique({
@@ -2233,7 +2991,7 @@ var getTutorBookings = async (tutorId) => {
   if (!tutorProfile) {
     throw new Error("Tutor profile not found");
   }
-  return await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     where: { tutorId: tutorProfile.id },
     include: {
       student: {
@@ -2255,6 +3013,7 @@ var getTutorBookings = async (tutorId) => {
     },
     orderBy: { dateTime: "desc" }
   });
+  return attachPaymentsToBookings(bookings);
 };
 var getSingleBooking = async (bookingId, userId, role) => {
   const booking = await prisma.booking.findUnique({
@@ -2304,7 +3063,8 @@ var getSingleBooking = async (bookingId, userId, role) => {
       throw new Error("Unauthorized");
     }
   }
-  return booking;
+  const [bookingWithPayment] = await attachPaymentsToBookings([booking]);
+  return bookingWithPayment;
 };
 var updateBookingStatus = async (bookingId, userId, role, status) => {
   const booking = await prisma.booking.findUnique({
@@ -2325,10 +3085,52 @@ var updateBookingStatus = async (bookingId, userId, role, status) => {
     }
   }
   if (role === "ADMIN") {
-    return await prisma.booking.update({
+    if (status === "CONFIRMED") {
+      await ensureBookingPaymentPaid(bookingId);
+    }
+    const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
       data: { status }
     });
+    if (status === "CONFIRMED") {
+      await NotificationService.createNotification({
+        userId: updatedBooking.studentId,
+        title: "Booking Confirmed",
+        message: "Your booking has been confirmed",
+        type: "BOOKING_CONFIRMED",
+        link: "/dashboard/bookings",
+        entityId: updatedBooking.id
+      });
+      const calendarBooking = await GoogleCalendarService.createBookingCalendarEvent(
+        updatedBooking.id
+      );
+      return calendarBooking ?? updatedBooking;
+    }
+    if (status === "CANCELLED") {
+      await GoogleCalendarService.deleteBookingCalendarEvent(updatedBooking.id);
+      await NotificationService.createNotifications([
+        {
+          userId: updatedBooking.studentId,
+          title: "Booking Cancelled",
+          message: "Your booking was cancelled",
+          type: "BOOKING_CANCELLED",
+          link: "/dashboard/bookings",
+          entityId: updatedBooking.id
+        }
+      ]);
+    }
+    if (status === "COMPLETED" && updatedBooking.courseId) {
+      await CertificateService.issueForCompletedBooking(bookingId);
+      await NotificationService.createNotification({
+        userId: updatedBooking.studentId,
+        title: "Session Completed",
+        message: "You can now leave a review and download your certificate",
+        type: "SESSION_COMPLETED",
+        link: "/dashboard/bookings",
+        entityId: updatedBooking.id
+      });
+    }
+    return updatedBooking;
   }
   if (status === "CANCELLED" && role === "STUDENT") {
     if (booking.status !== "PENDING" && booking.status !== "CONFIRMED") {
@@ -2337,6 +3139,22 @@ var updateBookingStatus = async (bookingId, userId, role, status) => {
     return await prisma.booking.update({
       where: { id: bookingId },
       data: { status: "CANCELLED" }
+    }).then(async (cancelledBooking) => {
+      const context = await getBookingNotificationContext(cancelledBooking.id);
+      if (context) {
+        await NotificationService.createNotification({
+          userId: context.tutor.userId,
+          title: "Booking Cancelled",
+          message: `${context.student.name} cancelled the booking`,
+          type: "BOOKING_CANCELLED",
+          link: "/tutor/sessions",
+          entityId: cancelledBooking.id
+        });
+      }
+      const bookingWithoutCalendar = await GoogleCalendarService.deleteBookingCalendarEvent(
+        cancelledBooking.id
+      );
+      return bookingWithoutCalendar ?? cancelledBooking;
     });
   }
   if (role === "TUTOR") {
@@ -2344,25 +3162,50 @@ var updateBookingStatus = async (bookingId, userId, role, status) => {
       if (booking.status !== "PENDING") {
         throw new Error("Only pending bookings can be confirmed");
       }
-      return await prisma.booking.update({
+      await ensureBookingPaymentPaid(bookingId);
+      const confirmedBooking = await prisma.booking.update({
         where: { id: bookingId },
         data: { status: "CONFIRMED" }
       });
+      await NotificationService.createNotification({
+        userId: confirmedBooking.studentId,
+        title: "Booking Confirmed",
+        message: "Your booking has been confirmed",
+        type: "BOOKING_CONFIRMED",
+        link: "/dashboard/bookings",
+        entityId: confirmedBooking.id
+      });
+      const calendarBooking = await GoogleCalendarService.createBookingCalendarEvent(
+        confirmedBooking.id
+      );
+      return calendarBooking ?? confirmedBooking;
     }
     if (status === "COMPLETED") {
       if (booking.status !== "CONFIRMED") {
         throw new Error("Only confirmed sessions can be marked as completed");
       }
-      return await prisma.booking.update({
+      const completedBooking = await prisma.booking.update({
         where: { id: bookingId },
         data: { status: "COMPLETED" }
       });
+      if (completedBooking.courseId) {
+        await CertificateService.issueForCompletedBooking(bookingId);
+      }
+      await NotificationService.createNotification({
+        userId: completedBooking.studentId,
+        title: "Session Completed",
+        message: "You can now leave a review and download your certificate",
+        type: "SESSION_COMPLETED",
+        link: "/dashboard/bookings",
+        entityId: completedBooking.id
+      });
+      return completedBooking;
     }
   }
   throw new Error("Invalid status update");
 };
 var getAllBookings = async () => {
-  return await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     include: {
       student: {
         select: {
@@ -2395,14 +3238,18 @@ var getAllBookings = async () => {
     },
     orderBy: { createdAt: "desc" }
   });
+  return attachPaymentsToBookings(bookings);
 };
 var BookingService = {
   createBooking,
+  validateBookingRequest,
   getStudentBookings,
   getTutorBookings,
   getSingleBooking,
   updateBookingStatus,
-  getAllBookings
+  getAllBookings,
+  attachPaymentsToBookings,
+  notifyBookingCreated
 };
 
 // src/modules/bookings/booking.validation.ts
@@ -2669,7 +3516,7 @@ var updateUserStatus = async (userId, status) => {
   });
 };
 var getAllBookings2 = async () => {
-  return await prisma.booking.findMany({
+  const bookings = await prisma.booking.findMany({
     include: {
       student: {
         select: {
@@ -2702,6 +3549,7 @@ var getAllBookings2 = async () => {
     },
     orderBy: { createdAt: "desc" }
   });
+  return BookingService.attachPaymentsToBookings(bookings);
 };
 var getDashboardStats = async () => {
   const [
@@ -2882,11 +3730,20 @@ var approveTutor = async (userId) => {
   if (user.role !== "TUTOR") throw new Error("User is not a tutor");
   if (user.status !== UserStatus.PENDING)
     throw new Error("User is not pending approval");
-  return await prisma.user.update({
+  const approvedUser = await prisma.user.update({
     where: { id: userId },
     data: { status: UserStatus.ACTIVE },
     select: { id: true, name: true, email: true, role: true, status: true }
   });
+  await NotificationService.createNotification({
+    userId,
+    title: "Tutor Request Approved",
+    message: "You are now an approved tutor on SkillBridge",
+    type: "TUTOR_REQUEST_APPROVED",
+    link: "/tutor/dashboard",
+    entityId: userId
+  });
+  return approvedUser;
 };
 var rejectTutor = async (userId) => {
   const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -2894,11 +3751,20 @@ var rejectTutor = async (userId) => {
   if (user.role !== "TUTOR") throw new Error("User is not a tutor");
   if (user.status !== UserStatus.PENDING)
     throw new Error("User is not pending approval");
-  return await prisma.user.update({
+  const rejectedUser = await prisma.user.update({
     where: { id: userId },
     data: { status: UserStatus.REJECTED },
     select: { id: true, name: true, email: true, role: true, status: true }
   });
+  await NotificationService.createNotification({
+    userId,
+    title: "Tutor Request Rejected",
+    message: "Your tutor request was rejected. Please contact support for details.",
+    type: "TUTOR_REQUEST_REJECTED",
+    link: "/dashboard/profile",
+    entityId: userId
+  });
+  return rejectedUser;
 };
 var deleteUser = async (userId) => {
   const user = await prisma.user.findUnique({
@@ -2959,14 +3825,14 @@ import { z as z4 } from "zod/v4";
 var makeTutorSchema = z4.object({
   bio: z4.string().min(10, "Bio must be at least 10 characters").max(1e3, "Bio must be 1000 characters or less"),
   subjects: z4.array(z4.string().min(1)).min(1, "At least one subject is required"),
-  price: z4.number().positive("Price must be a positive number")
+  price: z4.coerce.number().min(100, "Price must be at least \u09F3100 for Stripe payment")
 });
 var createTutorSchema = z4.object({
   name: z4.string().min(2, "Name must be at least 2 characters").max(100, "Name must be 100 characters or less"),
   email: z4.string().email("Invalid email address"),
   bio: z4.string().min(10, "Bio must be at least 10 characters").max(1e3, "Bio must be 1000 characters or less"),
   subjects: z4.array(z4.string().min(1)).min(1, "At least one subject is required"),
-  price: z4.number().positive("Price must be a positive number")
+  price: z4.coerce.number().min(100, "Price must be at least \u09F3100 for Stripe payment")
 });
 
 // src/modules/admin/admin.controller.ts
@@ -3683,6 +4549,1006 @@ router9.post(
 router9.post("/image/from-url", auth_default(), UploadController.uploadImageFromUrl);
 var uploadRouter = router9;
 
+// src/modules/payments/payment.routes.ts
+import { Router as Router10 } from "express";
+
+// src/modules/payments/payment.service.ts
+import Stripe from "stripe";
+import { Prisma as Prisma3 } from "@prisma/client";
+
+// src/modules/payments/invoice.template.ts
+var escapePdfText2 = (text3) => String(text3).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+var safeText2 = (text3, maxLength = 80) => {
+  const normalized = String(text3 ?? "N/A").replace(/[^\x20-\x7E]/g, "");
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3)}...` : normalized || "N/A";
+};
+var text2 = (value, x, y, size = 10, font = "F1", maxLength = 80) => `BT /${font} ${size} Tf ${x} ${y} Td (${escapePdfText2(
+  safeText2(value, maxLength)
+)}) Tj ET`;
+var coloredText2 = (value, x, y, size, font, color, maxLength = 80) => `${color.join(" ")} rg
+${text2(value, x, y, size, font, maxLength)}`;
+var rect2 = (x, y, width, height, color) => `${color.join(" ")} rg ${x} ${y} ${width} ${height} re f`;
+var lerp = (a, b, t) => a + (b - a) * t;
+var gradientRect = (x, y, width, height, from, mid, to, steps = 140) => {
+  const sliceWidth = width / steps;
+  return Array.from({ length: steps }).map((_, i) => {
+    const t = i / (steps - 1);
+    const color = t < 0.5 ? [
+      lerp(from[0], mid[0], t * 2),
+      lerp(from[1], mid[1], t * 2),
+      lerp(from[2], mid[2], t * 2)
+    ] : [
+      lerp(mid[0], to[0], (t - 0.5) * 2),
+      lerp(mid[1], to[1], (t - 0.5) * 2),
+      lerp(mid[2], to[2], (t - 0.5) * 2)
+    ];
+    return rect2(x + i * sliceWidth, y, sliceWidth + 0.8, height, color);
+  }).join("\n");
+};
+var roundedRect = (x, y, width, height, radius, color, mode = "fill") => {
+  const op = mode === "fill" ? "f" : "S";
+  const colorOp = mode === "fill" ? "rg" : "RG";
+  const x2 = x + width;
+  const y2 = y + height;
+  const r = Math.min(radius, width / 2, height / 2);
+  return [
+    `${color.join(" ")} ${colorOp}`,
+    `${x + r} ${y} m`,
+    `${x2 - r} ${y} l`,
+    `${x2} ${y} ${x2} ${y} ${x2} ${y + r} c`,
+    `${x2} ${y2 - r} l`,
+    `${x2} ${y2} ${x2} ${y2} ${x2 - r} ${y2} c`,
+    `${x + r} ${y2} l`,
+    `${x} ${y2} ${x} ${y2} ${x} ${y2 - r} c`,
+    `${x} ${y + r} l`,
+    `${x} ${y} ${x} ${y} ${x + r} ${y} c`,
+    `h ${op}`
+  ].join("\n");
+};
+var info = (label, value, x, y, width = 46) => [
+  coloredText2(label.toUpperCase(), x, y, 7, "F2", [0.5, 0.58, 0.72], width),
+  coloredText2(value, x, y - 16, 9, "F2", [0.02, 0.04, 0.08], width)
+].join("\n");
+var courseRow = (label, value, y) => [
+  coloredText2(label, 46, y, 9, "F1", [0.36, 0.45, 0.58], 28),
+  coloredText2(value, 318, y, 9, "F2", [0.02, 0.04, 0.08], 42)
+].join("\n");
+var buildPdf2 = (contentLines) => {
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(
+      contentLines,
+      "utf8"
+    )} >>
+stream
+${contentLines}
+endstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>"
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(pdf, "utf8"));
+    pdf += `${index + 1} 0 obj
+${object}
+endobj
+`;
+  });
+  const xrefOffset = Buffer.byteLength(pdf, "utf8");
+  pdf += `xref
+0 ${objects.length + 1}
+`;
+  pdf += "0000000000 65535 f \n";
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n 
+`;
+  });
+  pdf += `trailer
+<< /Size ${objects.length + 1} /Root 1 0 R >>
+startxref
+${xrefOffset}
+%%EOF`;
+  return Buffer.from(pdf, "utf8");
+};
+function renderInvoicePdf(payment) {
+  const invoiceId = `INV-${payment.id.slice(0, 8).toUpperCase()}`;
+  const invoiceDate = new Date(payment.createdAt).toLocaleString("en-BD");
+  const sessionDate = payment.booking?.dateTime ? new Date(payment.booking.dateTime).toLocaleString("en-BD") : payment.date;
+  const amount = `${payment.currency.toUpperCase()} ${payment.amount}`;
+  const contentLines = [
+    // Page background
+    rect2(0, 0, 612, 792, [1, 1, 1]),
+    // Smooth gradient header
+    gradientRect(
+      0,
+      690,
+      612,
+      102,
+      [0.39, 0.32, 0.94],
+      [0.71, 0.16, 0.88],
+      [0.35, 0.13, 0.84],
+      160
+    ),
+    // Header text
+    coloredText2("SkillBridge Invoice", 28, 742, 20, "F2", [1, 1, 1], 34),
+    coloredText2(
+      "Thank you for learning with SkillBridge.",
+      28,
+      722,
+      8,
+      "F1",
+      [0.9, 0.9, 1],
+      52
+    ),
+    // Paid badge
+    roundedRect(520, 732, 58, 28, 14, [0.28, 0.42, 0.82]),
+    coloredText2(payment.status, 535, 742, 8, "F2", [1, 1, 1], 12),
+    // Invoice meta
+    info("Invoice ID", invoiceId, 28, 660, 28),
+    info("Transaction ID", payment.transactionId, 312, 660, 34),
+    info("Gateway", payment.gateway, 28, 615, 24),
+    info("Invoice Date", invoiceDate, 312, 615, 30),
+    rect2(0, 570, 612, 1, [0.86, 0.89, 0.93]),
+    // Student card
+    roundedRect(28, 402, 268, 136, 14, [0.98, 0.99, 1]),
+    roundedRect(28, 402, 268, 136, 14, [0.84, 0.88, 0.93], "stroke"),
+    // Session card
+    roundedRect(316, 402, 268, 136, 14, [0.98, 0.99, 1]),
+    roundedRect(316, 402, 268, 136, 14, [0.84, 0.88, 0.93], "stroke"),
+    coloredText2("STUDENT DETAILS", 46, 510, 7, "F2", [0.36, 0.48, 0.7], 24),
+    info("Name", payment.student?.name ?? "N/A", 46, 480, 30),
+    info("Email", payment.student?.email ?? "N/A", 46, 440, 34),
+    coloredText2("SESSION DETAILS", 334, 510, 7, "F2", [0.36, 0.48, 0.7], 24),
+    info("Tutor", payment.tutor?.user?.name ?? "N/A", 334, 480, 28),
+    info("Session Date", sessionDate, 334, 440, 30),
+    // Course summary card
+    roundedRect(28, 222, 556, 160, 14, [1, 1, 1]),
+    roundedRect(28, 222, 556, 160, 14, [0.84, 0.88, 0.93], "stroke"),
+    // Header
+    rect2(28, 326, 556, 56, [0.98, 0.99, 1]),
+    coloredText2("Course Summary", 46, 352, 10, "F2", [0.02, 0.06, 0.12], 30),
+    // Divider lines
+    rect2(28, 326, 556, 1, [0.86, 0.89, 0.94]),
+    rect2(28, 286, 556, 1, [0.86, 0.89, 0.94]),
+    rect2(28, 246, 556, 1, [0.86, 0.89, 0.94]),
+    // Rows text
+    courseRow("Course", payment.course?.title ?? "N/A", 304),
+    courseRow("Category", payment.course?.category?.name ?? "N/A", 264),
+    courseRow(
+      "Booking Status",
+      payment.booking?.status ?? "Not created yet",
+      232
+    ),
+    // Total paid box
+    roundedRect(28, 72, 556, 102, 18, [0.01, 0.03, 0.1]),
+    coloredText2("Total Paid", 46, 135, 10, "F1", [1, 1, 1], 20),
+    coloredText2(amount, 46, 100, 26, "F2", [1, 1, 1], 22),
+    // Payment small card
+    roundedRect(476, 94, 82, 64, 10, [0.12, 0.15, 0.25]),
+    coloredText2("Payment", 494, 130, 8, "F1", [1, 1, 1], 14),
+    coloredText2(payment.status, 502, 110, 9, "F2", [0.13, 0.9, 0.55], 12),
+    // Footer
+    coloredText2(
+      "This invoice confirms your SkillBridge booking and payment record.",
+      130,
+      38,
+      8,
+      "F1",
+      [0.34, 0.44, 0.62],
+      62
+    )
+  ].join("\n");
+  return buildPdf2(contentLines);
+}
+
+// src/modules/payments/payment.service.ts
+var ZERO_DECIMAL_CURRENCIES = /* @__PURE__ */ new Set([
+  "bif",
+  "clp",
+  "djf",
+  "gnf",
+  "jpy",
+  "kmf",
+  "krw",
+  "mga",
+  "pyg",
+  "rwf",
+  "ugx",
+  "vnd",
+  "vuv",
+  "xaf",
+  "xof",
+  "xpf"
+]);
+var getApiBaseUrl = () => process.env.API_PUBLIC_URL || process.env.BETTER_AUTH_URL || "http://localhost:5000";
+var getFrontendUrl2 = () => process.env.APP_URL || "http://localhost:3000";
+var getStripe = () => {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("Stripe secret key is not configured");
+  }
+  return new Stripe(secretKey);
+};
+var getCurrency = () => (process.env.STRIPE_CURRENCY || "bdt").trim().toLowerCase();
+var toStripeUnitAmount = (amount, currency) => ZERO_DECIMAL_CURRENCIES.has(currency) ? amount : amount * 100;
+var buildTransactionId = () => `SB-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
+var initiatePayment = async (studentId, payload) => {
+  const stripe = getStripe();
+  const currency = getCurrency();
+  const { tutor, course, amount } = await BookingService.validateBookingRequest(
+    studentId,
+    payload
+  );
+  const student = await prisma.user.findUnique({
+    where: { id: studentId },
+    select: { name: true, email: true }
+  });
+  if (!student) {
+    throw new Error("Student not found");
+  }
+  const transactionId = buildTransactionId();
+  const payment = await prisma.payment.create({
+    data: {
+      transactionId,
+      gateway: "STRIPE",
+      amount,
+      currency,
+      studentId,
+      tutorId: payload.tutorId,
+      courseId: payload.courseId,
+      availabilityId: payload.availabilityId,
+      date: payload.date
+    }
+  });
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    customer_email: student.email,
+    success_url: `${getApiBaseUrl()}/payments/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${getApiBaseUrl()}/payments/cancel?payment_id=${payment.id}`,
+    metadata: {
+      paymentId: payment.id,
+      transactionId,
+      studentId,
+      tutorProfileId: payload.tutorId,
+      tutorUserId: tutor.userId,
+      courseId: payload.courseId,
+      availabilityId: payload.availabilityId,
+      date: payload.date
+    },
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency,
+          unit_amount: toStripeUnitAmount(amount, currency),
+          product_data: {
+            name: course.title,
+            description: `SkillBridge session with ${tutor.user?.name ?? "Tutor"}`
+          }
+        }
+      }
+    ]
+  });
+  await prisma.payment.update({
+    where: { id: payment.id },
+    data: {
+      gatewayTransactionId: session.id,
+      gatewayPayload: session
+    }
+  });
+  if (!session.url) {
+    throw new Error("Stripe checkout URL was not returned");
+  }
+  return {
+    transactionId,
+    amount,
+    currency,
+    paymentUrl: session.url,
+    cancelUrl: `${getFrontendUrl2()}/dashboard/bookings?payment=cancelled`
+  };
+};
+var createBookingAfterPayment = async (sessionId) => {
+  const stripe = getStripe();
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  if (session.payment_status !== "paid") {
+    throw new Error("Stripe payment is not completed");
+  }
+  const paymentId = session.metadata?.paymentId;
+  if (!paymentId) {
+    throw new Error("Payment record not found in Stripe metadata");
+  }
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId }
+  });
+  if (!payment) {
+    throw new Error("Payment record not found");
+  }
+  if (payment.status === "PAID" && payment.bookingId) {
+    return await prisma.booking.findUnique({ where: { id: payment.bookingId } });
+  }
+  if (payment.status === "CANCELLED") {
+    throw new Error("Payment was cancelled");
+  }
+  if (payment.status === "FAILED") {
+    throw new Error("Payment failed");
+  }
+  const payload = {
+    tutorId: payment.tutorId,
+    courseId: payment.courseId,
+    availabilityId: payment.availabilityId,
+    date: payment.date
+  };
+  const { bookingDate } = await BookingService.validateBookingRequest(
+    payment.studentId,
+    payload
+  );
+  const booking = await prisma.$transaction(
+    async (tx) => {
+      const existingPayment = await tx.payment.findUnique({
+        where: { id: payment.id }
+      });
+      if (existingPayment?.bookingId) {
+        return await tx.booking.findUnique({
+          where: { id: existingPayment.bookingId }
+        });
+      }
+      const conflicting = await tx.booking.findFirst({
+        where: {
+          tutorId: payment.tutorId,
+          dateTime: bookingDate,
+          status: { in: ["PENDING", "CONFIRMED"] }
+        }
+      });
+      if (conflicting) {
+        throw new Error("This time slot is already booked");
+      }
+      const booking2 = await tx.booking.create({
+        data: {
+          studentId: payment.studentId,
+          tutorId: payment.tutorId,
+          courseId: payment.courseId,
+          dateTime: bookingDate,
+          status: "PENDING"
+        }
+      });
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: "PAID",
+          bookingId: booking2.id,
+          gatewayTransactionId: session.id,
+          validationId: session.payment_intent?.toString() ?? null,
+          gatewayPayload: session
+        }
+      });
+      return booking2;
+    },
+    { isolationLevel: Prisma3.TransactionIsolationLevel.Serializable }
+  );
+  if (booking?.id) {
+    await BookingService.notifyBookingCreated(booking.id);
+  }
+  return booking;
+};
+var markPaymentCancelled = async (paymentId) => {
+  if (!paymentId) return null;
+  return await prisma.payment.updateMany({
+    where: {
+      id: paymentId,
+      status: "INITIATED"
+    },
+    data: { status: "CANCELLED" }
+  });
+};
+var buildPaymentWhere = async ({ userId, role }) => {
+  if (role === "ADMIN") return {};
+  if (role === "STUDENT") return { studentId: userId };
+  if (role === "TUTOR") {
+    const tutorProfile = await prisma.tutorProfile.findUnique({
+      where: { userId },
+      select: { id: true }
+    });
+    if (!tutorProfile) {
+      throw new Error("Tutor profile not found");
+    }
+    return { tutorId: tutorProfile.id };
+  }
+  throw new Error("Unauthorized");
+};
+var enrichPayments = async (payments) => {
+  const studentIds = Array.from(new Set(payments.map((item) => item.studentId)));
+  const tutorIds = Array.from(new Set(payments.map((item) => item.tutorId)));
+  const courseIds = Array.from(new Set(payments.map((item) => item.courseId)));
+  const bookingIds = Array.from(
+    new Set(payments.map((item) => item.bookingId).filter(Boolean))
+  );
+  const [students, tutors, courses, bookings] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { in: studentIds } },
+      select: { id: true, name: true, email: true, image: true }
+    }),
+    prisma.tutorProfile.findMany({
+      where: { id: { in: tutorIds } },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } }
+      }
+    }),
+    prisma.course.findMany({
+      where: { id: { in: courseIds } },
+      include: { category: { select: { id: true, name: true } } }
+    }),
+    prisma.booking.findMany({
+      where: { id: { in: bookingIds } },
+      select: { id: true, status: true, dateTime: true }
+    })
+  ]);
+  const studentMap = new Map(students.map((item) => [item.id, item]));
+  const tutorMap = new Map(tutors.map((item) => [item.id, item]));
+  const courseMap = new Map(courses.map((item) => [item.id, item]));
+  const bookingMap = new Map(bookings.map((item) => [item.id, item]));
+  return payments.map((payment) => ({
+    ...payment,
+    student: studentMap.get(payment.studentId) ?? null,
+    tutor: tutorMap.get(payment.tutorId) ?? null,
+    course: courseMap.get(payment.courseId) ?? null,
+    booking: payment.bookingId ? bookingMap.get(payment.bookingId) ?? null : null
+  }));
+};
+var getPaymentHistory = async (scope) => {
+  const where = await buildPaymentWhere(scope);
+  const payments = await prisma.payment.findMany({
+    where,
+    orderBy: { createdAt: "desc" }
+  });
+  return await enrichPayments(payments);
+};
+var getPaymentForInvoice = async (paymentId, userId, role) => {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId }
+  });
+  if (!payment) {
+    throw new Error("Payment not found");
+  }
+  if (role === "STUDENT" && payment.studentId !== userId) {
+    throw new Error("Unauthorized");
+  }
+  if (role === "TUTOR") {
+    const tutorProfile = await prisma.tutorProfile.findUnique({
+      where: { userId },
+      select: { id: true }
+    });
+    if (!tutorProfile || tutorProfile.id !== payment.tutorId) {
+      throw new Error("Unauthorized");
+    }
+  }
+  const [enriched] = await enrichPayments([payment]);
+  if (!enriched) {
+    throw new Error("Payment not found");
+  }
+  return enriched;
+};
+var createInvoicePdf = async (paymentId, userId, role) => {
+  const payment = await getPaymentForInvoice(paymentId, userId, role);
+  return {
+    filename: `skillbridge-invoice-${payment.transactionId}.pdf`,
+    buffer: renderInvoicePdf(payment)
+  };
+};
+var PaymentService = {
+  initiatePayment,
+  createBookingAfterPayment,
+  markPaymentCancelled,
+  getPaymentHistory,
+  createInvoicePdf
+};
+
+// src/modules/payments/payment.validation.ts
+import { z as z8 } from "zod/v4";
+var initiatePaymentSchema = createBookingSchema;
+var stripeSuccessSchema = z8.object({
+  session_id: z8.string().min(1, "Missing Stripe checkout session ID")
+});
+var stripeCancelSchema = z8.object({
+  payment_id: z8.string().optional()
+});
+
+// src/modules/payments/payment.controller.ts
+var getFrontendUrl3 = () => process.env.APP_URL || "http://localhost:3000";
+var initiatePayment2 = async (req, res) => {
+  try {
+    const parsed = initiatePaymentSchema.parse(req.body);
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+    const result = await PaymentService.initiatePayment(userId, parsed);
+    res.status(201).json({
+      success: true,
+      message: "Payment session created. Redirect the student to payment.",
+      data: result
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var paymentSuccess = async (req, res) => {
+  const frontendUrl = getFrontendUrl3();
+  try {
+    const parsed = stripeSuccessSchema.parse(req.query);
+    const booking = await PaymentService.createBookingAfterPayment(parsed.session_id);
+    res.redirect(
+      `${frontendUrl}/dashboard/bookings?payment=success&bookingId=${booking?.id ?? ""}`
+    );
+  } catch (error) {
+    res.redirect(
+      `${frontendUrl}/dashboard/bookings?payment=failed&message=${encodeURIComponent(
+        error.message || "Payment failed"
+      )}`
+    );
+  }
+};
+var paymentCancel = async (req, res) => {
+  const parsed = stripeCancelSchema.parse(req.query);
+  await PaymentService.markPaymentCancelled(parsed.payment_id);
+  res.redirect(`${getFrontendUrl3()}/dashboard/bookings?payment=cancelled`);
+};
+var getPaymentHistory2 = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    if (!userId || !role) {
+      throw new Error("Unauthorized");
+    }
+    const result = await PaymentService.getPaymentHistory({ userId, role });
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var downloadInvoice = async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const id = Array.isArray(rawId) ? rawId[0] : rawId;
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    if (!id || !userId || !role) {
+      throw new Error("Unauthorized or invalid request");
+    }
+    const invoice = await PaymentService.createInvoicePdf(id, userId, role);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${invoice.filename}"`
+    );
+    res.status(200).send(invoice.buffer);
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var PaymentController = {
+  initiatePayment: initiatePayment2,
+  paymentSuccess,
+  paymentCancel,
+  getPaymentHistory: getPaymentHistory2,
+  downloadInvoice
+};
+
+// src/modules/payments/payment.routes.ts
+var router10 = Router10();
+router10.post("/initiate", auth_default("STUDENT" /* STUDENT */), PaymentController.initiatePayment);
+router10.get("/", auth_default(), PaymentController.getPaymentHistory);
+router10.get("/:id/invoice", auth_default(), PaymentController.downloadInvoice);
+router10.get("/success", PaymentController.paymentSuccess);
+router10.get("/cancel", PaymentController.paymentCancel);
+var paymentRouter = router10;
+
+// src/modules/certificates/certificate.routes.ts
+import { Router as Router11 } from "express";
+
+// src/modules/certificates/certificate.controller.ts
+var getCertificates2 = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    if (!userId || !role) {
+      throw new Error("Unauthorized");
+    }
+    const result = await CertificateService.getCertificates(userId, role);
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var getCertificateByCourse2 = async (req, res) => {
+  try {
+    const rawCourseId = req.params.courseId;
+    const courseId = Array.isArray(rawCourseId) ? rawCourseId[0] : rawCourseId;
+    const userId = req.user?.id;
+    if (!courseId || !userId) {
+      throw new Error("Unauthorized or invalid request");
+    }
+    const result = await CertificateService.getCertificateByCourse(
+      userId,
+      courseId
+    );
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var verifyCertificate = async (req, res) => {
+  try {
+    const rawCertificateNo = req.params.certificateNo;
+    const certificateNo = Array.isArray(rawCertificateNo) ? rawCertificateNo[0] : rawCertificateNo;
+    if (!certificateNo) {
+      throw new Error("Invalid certificate number");
+    }
+    const certificate = await CertificateService.getCertificateByNumber(certificateNo);
+    res.status(200).json({
+      success: true,
+      message: "Certificate verified",
+      data: {
+        id: certificate.id,
+        certificateNo: certificate.certificateNo,
+        issuedAt: certificate.issuedAt,
+        student: certificate.student,
+        course: certificate.course
+      }
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var downloadCertificate = async (req, res) => {
+  try {
+    const rawCertificateId = req.params.id;
+    const certificateId = Array.isArray(rawCertificateId) ? rawCertificateId[0] : rawCertificateId;
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    if (!certificateId || !userId || !role) {
+      throw new Error("Unauthorized or invalid request");
+    }
+    const certificate = await CertificateService.createCertificatePdf(
+      certificateId,
+      userId,
+      role
+    );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${certificate.filename}"`
+    );
+    res.status(200).send(certificate.buffer);
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var CertificateController = {
+  getCertificates: getCertificates2,
+  getCertificateByCourse: getCertificateByCourse2,
+  verifyCertificate,
+  downloadCertificate
+};
+
+// src/modules/certificates/certificate.routes.ts
+var router11 = Router11();
+router11.get("/", auth_default(), CertificateController.getCertificates);
+router11.get("/verify/:certificateNo", CertificateController.verifyCertificate);
+router11.get("/:id/download", auth_default(), CertificateController.downloadCertificate);
+router11.get("/:courseId", auth_default(), CertificateController.getCertificateByCourse);
+var certificateRouter = router11;
+
+// src/modules/notifications/notification.routes.ts
+import { Router as Router12 } from "express";
+
+// src/modules/notifications/notification.controller.ts
+var getMyNotifications2 = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) throw new Error("Unauthorized");
+    const result = await NotificationService.getMyNotifications(userId);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var markAsRead2 = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const rawId = req.params.id;
+    const notificationId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!userId || !notificationId) {
+      throw new Error("Unauthorized or invalid request");
+    }
+    const result = await NotificationService.markAsRead(
+      notificationId,
+      userId
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var markAllAsRead2 = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) throw new Error("Unauthorized");
+    const result = await NotificationService.markAllAsRead(userId);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var deleteNotification2 = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const rawId = req.params.id;
+    const notificationId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!userId || !notificationId) {
+      throw new Error("Unauthorized or invalid request");
+    }
+    const result = await NotificationService.deleteNotification(
+      notificationId,
+      userId
+    );
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var NotificationController = {
+  getMyNotifications: getMyNotifications2,
+  markAsRead: markAsRead2,
+  markAllAsRead: markAllAsRead2,
+  deleteNotification: deleteNotification2
+};
+
+// src/modules/notifications/notification.routes.ts
+var router12 = Router12();
+router12.get("/", auth_default(), NotificationController.getMyNotifications);
+router12.patch("/read-all", auth_default(), NotificationController.markAllAsRead);
+router12.patch("/:id/read", auth_default(), NotificationController.markAsRead);
+router12.delete("/:id", auth_default(), NotificationController.deleteNotification);
+var notificationRouter = router12;
+
+// src/modules/wishlist/wishlist.routes.ts
+import { Router as Router13 } from "express";
+
+// src/modules/wishlist/wishlist.service.ts
+var courseInclude2 = {
+  category: {
+    select: { id: true, name: true, description: true, image: true }
+  },
+  createdBy: {
+    select: { id: true, name: true, image: true, role: true }
+  },
+  tutor: {
+    select: {
+      id: true,
+      name: true,
+      image: true,
+      role: true,
+      status: true,
+      tutorProfile: { select: { id: true } }
+    }
+  },
+  _count: { select: { wishlists: true } }
+};
+var tutorInclude = {
+  user: true,
+  reviews: true,
+  _count: { select: { wishlists: true } }
+};
+var addCourse = async (userId, courseId) => {
+  const course = await prisma.course.findUnique({ where: { id: courseId } });
+  if (!course) throw new Error("Course not found");
+  return prisma.wishlist.upsert({
+    where: { userId_courseId: { userId, courseId } },
+    update: {},
+    create: { userId, courseId, type: "COURSE" }
+  });
+};
+var addTutor = async (userId, tutorId) => {
+  const tutor = await prisma.tutorProfile.findUnique({
+    where: { id: tutorId },
+    include: { user: { select: { role: true, status: true } } }
+  });
+  if (!tutor || tutor.user.role !== "TUTOR" || tutor.user.status !== "ACTIVE") {
+    throw new Error("Tutor not found");
+  }
+  return prisma.wishlist.upsert({
+    where: { userId_tutorId: { userId, tutorId } },
+    update: {},
+    create: { userId, tutorId, type: "TUTOR" }
+  });
+};
+var removeCourse = async (userId, courseId) => {
+  return prisma.wishlist.deleteMany({
+    where: { userId, courseId, type: "COURSE" }
+  });
+};
+var removeTutor = async (userId, tutorId) => {
+  return prisma.wishlist.deleteMany({
+    where: { userId, tutorId, type: "TUTOR" }
+  });
+};
+var getWishlist = async (userId) => {
+  const [courseItems, tutorItems] = await Promise.all([
+    prisma.wishlist.findMany({
+      where: { userId, type: "COURSE", courseId: { not: null } },
+      include: { course: { include: courseInclude2 } },
+      orderBy: { createdAt: "desc" }
+    }),
+    prisma.wishlist.findMany({
+      where: { userId, type: "TUTOR", tutorId: { not: null } },
+      include: { tutor: { include: tutorInclude } },
+      orderBy: { createdAt: "desc" }
+    })
+  ]);
+  return {
+    courses: courseItems.flatMap((item) => item.course ? [item.course] : []),
+    tutors: tutorItems.flatMap((item) => item.tutor ? [item.tutor] : [])
+  };
+};
+var WishlistService = {
+  addCourse,
+  addTutor,
+  removeCourse,
+  removeTutor,
+  getWishlist
+};
+
+// src/modules/wishlist/wishlist.controller.ts
+var getUserId = (req) => {
+  const userId = req.user?.id;
+  if (!userId) throw new Error("Unauthorized");
+  return userId;
+};
+var getParam = (req, key) => {
+  const raw = req.params[key];
+  return Array.isArray(raw) ? raw[0] : raw;
+};
+var getWishlist2 = async (req, res) => {
+  try {
+    const result = await WishlistService.getWishlist(getUserId(req));
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var addCourse2 = async (req, res) => {
+  try {
+    const courseId = getParam(req, "courseId");
+    if (!courseId) throw new Error("Invalid course id");
+    const result = await WishlistService.addCourse(getUserId(req), courseId);
+    res.status(201).json({
+      success: true,
+      message: "Course added to wishlist",
+      data: result
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var addTutor2 = async (req, res) => {
+  try {
+    const tutorId = getParam(req, "tutorId");
+    if (!tutorId) throw new Error("Invalid tutor id");
+    const result = await WishlistService.addTutor(getUserId(req), tutorId);
+    res.status(201).json({
+      success: true,
+      message: "Tutor added to wishlist",
+      data: result
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var removeCourse2 = async (req, res) => {
+  try {
+    const courseId = getParam(req, "courseId");
+    if (!courseId) throw new Error("Invalid course id");
+    const result = await WishlistService.removeCourse(getUserId(req), courseId);
+    res.status(200).json({
+      success: true,
+      message: "Course removed from wishlist",
+      data: result
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var removeTutor2 = async (req, res) => {
+  try {
+    const tutorId = getParam(req, "tutorId");
+    if (!tutorId) throw new Error("Invalid tutor id");
+    const result = await WishlistService.removeTutor(getUserId(req), tutorId);
+    res.status(200).json({
+      success: true,
+      message: "Tutor removed from wishlist",
+      data: result
+    });
+  } catch (error) {
+    res.status(getHttpStatusFromMessage(error.message)).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+var WishlistController = {
+  getWishlist: getWishlist2,
+  addCourse: addCourse2,
+  addTutor: addTutor2,
+  removeCourse: removeCourse2,
+  removeTutor: removeTutor2
+};
+
+// src/modules/wishlist/wishlist.routes.ts
+var router13 = Router13();
+router13.get("/", auth_default("STUDENT" /* STUDENT */), WishlistController.getWishlist);
+router13.post("/course/:courseId", auth_default("STUDENT" /* STUDENT */), WishlistController.addCourse);
+router13.post("/tutor/:tutorId", auth_default("STUDENT" /* STUDENT */), WishlistController.addTutor);
+router13.delete("/course/:courseId", auth_default("STUDENT" /* STUDENT */), WishlistController.removeCourse);
+router13.delete("/tutor/:tutorId", auth_default("STUDENT" /* STUDENT */), WishlistController.removeTutor);
+var wishlistRouter = router13;
+
 // src/routes.ts
 app_default.use("/categories", categoryRouter);
 app_default.use("/courses", courseRouter);
@@ -3693,6 +5559,10 @@ app_default.use("/reviews", reviewRouter);
 app_default.use("/availability", availabilityRouter);
 app_default.use("/users", userRouter);
 app_default.use("/upload", uploadRouter);
+app_default.use("/payments", paymentRouter);
+app_default.use("/certificates", certificateRouter);
+app_default.use("/notifications", notificationRouter);
+app_default.use("/wishlist", wishlistRouter);
 app_default.use(notFound);
 app_default.use(globalErrorHandler_default);
 

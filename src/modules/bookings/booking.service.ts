@@ -10,6 +10,7 @@ import {
 } from "../../helpers/booking.helpers";
 import { CertificateService } from "../certificates/certificate.service";
 import { NotificationService } from "../notifications/notification.service";
+import { GoogleCalendarService } from "../../services/googleCalendar.service";
 
 const ACTIVE_BOOKING_STATUSES = [
   BookingStatus.PENDING,
@@ -420,9 +421,18 @@ const updateBookingStatus = async (
         link: "/dashboard/bookings",
         entityId: updatedBooking.id,
       });
+
+      const calendarBooking =
+        await GoogleCalendarService.createBookingCalendarEvent(
+          updatedBooking.id,
+        );
+
+      return calendarBooking ?? updatedBooking;
     }
 
     if (status === "CANCELLED") {
+      await GoogleCalendarService.deleteBookingCalendarEvent(updatedBooking.id);
+
       await NotificationService.createNotifications([
         {
           userId: updatedBooking.studentId,
@@ -470,7 +480,12 @@ const updateBookingStatus = async (
         });
       }
 
-      return cancelledBooking;
+      const bookingWithoutCalendar =
+        await GoogleCalendarService.deleteBookingCalendarEvent(
+          cancelledBooking.id,
+        );
+
+      return bookingWithoutCalendar ?? cancelledBooking;
     });
   }
 
@@ -496,7 +511,12 @@ const updateBookingStatus = async (
         entityId: confirmedBooking.id,
       });
 
-      return confirmedBooking;
+      const calendarBooking =
+        await GoogleCalendarService.createBookingCalendarEvent(
+          confirmedBooking.id,
+        );
+
+      return calendarBooking ?? confirmedBooking;
     }
 
     if (status === "COMPLETED") {

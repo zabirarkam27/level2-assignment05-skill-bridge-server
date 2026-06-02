@@ -314,6 +314,12 @@ export const auth = betterAuth({
     google: {
       prompt: "select_account consent",
       accessType: "offline",
+      scope: [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/calendar",
+      ],
       clientId: process.env.GOOGLE_CLIENT_ID! as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET! as string,
     },

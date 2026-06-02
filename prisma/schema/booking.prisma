@@ -5,6 +5,9 @@ model Booking {
   courseId  String?
   dateTime  DateTime
   status    BookingStatus @default(PENDING)
+  googleEventId String?
+  googleEventCreatorUserId String?
+  meetingLink String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
