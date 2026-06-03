@@ -332,13 +332,21 @@ var auth = betterAuth({
 
 // src/app.ts
 var app = express();
+app.disable("x-powered-by");
+var parseOriginList = (value) => (value ?? "").split(",").map((origin) => origin.trim()).filter(Boolean);
 var allowedOrigins = Array.from(
-  new Set([
-    process.env.APP_URL,
+  /* @__PURE__ */ new Set([
+    ...parseOriginList(process.env.APP_URL),
     "http://localhost:3000",
     "https://skill-bridge-client-two-beta.vercel.app"
-  ].filter(Boolean))
+  ])
 );
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
 app.use(
   cors({
     origin(origin, callback) {
@@ -351,8 +359,8 @@ app.use(
     credentials: true
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.all("/api/auth/*splat", toNodeHandler(auth));
 app.get("/", (req, res) => {
   res.send("SkillBridge API is running");
@@ -494,7 +502,7 @@ var updateCategorySchema = z.object({
 
 // src/lib/image/image-upload.service.ts
 import axios from "axios";
-import { lookup } from "node:dns/promises";
+import { lookup as dnsLookup } from "node:dns/promises";
 import net from "node:net";
 
 // src/lib/image/image.optimizer.ts
@@ -665,11 +673,19 @@ async function validateRemoteImageUrl(input) {
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
     throw new Error("Local image URLs are not allowed");
   }
-  const addresses = await lookup(hostname, { all: true, verbatim: true });
+  const addresses = await dnsLookup(hostname, { all: true, verbatim: true });
   if (addresses.length === 0 || addresses.some(({ address }) => isPrivateAddress(address))) {
     throw new Error("Private or local image URLs are not allowed");
   }
-  return parsed.toString();
+  const [firstAddress] = addresses;
+  if (!firstAddress || firstAddress.family !== 4 && firstAddress.family !== 6) {
+    throw new Error("Image URL host could not be resolved safely");
+  }
+  return {
+    url: parsed.toString(),
+    address: firstAddress.address,
+    family: firstAddress.family
+  };
 }
 function assertRemoteImageContentType(contentType) {
   const value = Array.isArray(contentType) ? contentType[0] : contentType;
@@ -686,10 +702,15 @@ var ImageUploadService = {
   async fromUrl(url, presetInput) {
     const preset = parseImagePreset(presetInput);
     const safeUrl = await validateRemoteImageUrl(url);
-    const response = await axios.get(safeUrl, {
+    const safeLookup = (hostname, options, callback) => {
+      callback(null, { address: safeUrl.address, family: safeUrl.family });
+    };
+    const response = await axios.get(safeUrl.url, {
       responseType: "arraybuffer",
       maxContentLength: MAX_SOURCE_BYTES,
       maxBodyLength: MAX_SOURCE_BYTES,
+      maxRedirects: 0,
+      lookup: safeLookup,
       timeout: 15e3,
       validateStatus: (s) => s === 200
     });
@@ -1063,7 +1084,6 @@ var courseInclude = {
   },
   _count: { select: { wishlists: true } }
 };
-var db = prisma;
 var ensureTutorHasCategory = async (tutorId, categoryId) => {
   const category = await prisma.category.findUnique({
     where: { id: categoryId },
@@ -1108,7 +1128,7 @@ var ensureTutorHasCategory = async (tutorId, categoryId) => {
   return { tutor, category };
 };
 var getAllCourses = async (filters = {}) => {
-  return db.course.findMany({
+  return prisma.course.findMany({
     where: {
       ...filters.popular && { isPopular: true },
       ...filters.categoryId && { categoryId: filters.categoryId },
@@ -1126,7 +1146,7 @@ var getAllCourses = async (filters = {}) => {
   });
 };
 var getSingleCourse = async (id) => {
-  const course = await db.course.findUnique({
+  const course = await prisma.course.findUnique({
     where: { id },
     include: courseInclude
   });
@@ -1139,7 +1159,7 @@ var createCourse = async (createdById, role, payload) => {
     throw new Error("Please select a tutor for this course");
   }
   await ensureTutorHasCategory(tutorId, payload.categoryId);
-  const course = await db.course.create({
+  const course = await prisma.course.create({
     data: {
       title: payload.title,
       description: payload.description || null,
@@ -1163,7 +1183,7 @@ var createCourse = async (createdById, role, payload) => {
   return course;
 };
 var updateCourse = async (id, userId, role, payload) => {
-  const course = await db.course.findUnique({ where: { id } });
+  const course = await prisma.course.findUnique({ where: { id } });
   if (!course) throw new Error("Course not found");
   if (role !== "ADMIN" && payload.tutorId !== void 0) {
     throw new Error("Only admins can reassign course tutors");
@@ -1178,7 +1198,7 @@ var updateCourse = async (id, userId, role, payload) => {
     throw new Error("Please select a tutor for this course");
   }
   await ensureTutorHasCategory(nextTutorId, nextCategoryId);
-  const updatedCourse = await db.course.update({
+  const updatedCourse = await prisma.course.update({
     where: { id },
     data: {
       ...payload.title !== void 0 && { title: payload.title },
@@ -1208,7 +1228,7 @@ var updateCourse = async (id, userId, role, payload) => {
   return updatedCourse;
 };
 var deleteCourse = async (id, userId, role) => {
-  const course = await db.course.findUnique({ where: { id } });
+  const course = await prisma.course.findUnique({ where: { id } });
   if (!course) throw new Error("Course not found");
   if (role !== "ADMIN") {
     throw new Error("Tutors must request admin approval to delete courses");
@@ -1223,7 +1243,7 @@ var deleteCourse = async (id, userId, role) => {
   return { message: "Course deleted successfully" };
 };
 var requestCourseDelete = async (id, requesterId, role) => {
-  const course = await db.course.findUnique({
+  const course = await prisma.course.findUnique({
     where: { id },
     include: {
       deleteRequests: {
@@ -1337,9 +1357,9 @@ var resolveDeleteRequest = async (requestId, adminId, action) => {
   return approved;
 };
 var togglePopular = async (id, isPopular) => {
-  const course = await db.course.findUnique({ where: { id } });
+  const course = await prisma.course.findUnique({ where: { id } });
   if (!course) throw new Error("Course not found");
-  return db.course.update({
+  return prisma.course.update({
     where: { id },
     data: { isPopular },
     include: courseInclude
@@ -3552,19 +3572,98 @@ var getAllBookings2 = async () => {
   return BookingService.attachPaymentsToBookings(bookings);
 };
 var getDashboardStats = async () => {
+  const sixMonthsAgo = /* @__PURE__ */ new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
   const [
     totalUsers,
     totalTutors,
     totalStudents,
     totalBookings,
-    totalCategories
+    totalCategories,
+    paidRevenue,
+    paidPayments,
+    bookingStatusGroups,
+    courses,
+    tutors
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { role: "TUTOR" } }),
     prisma.user.count({ where: { role: "STUDENT" } }),
     prisma.booking.count(),
-    prisma.category.count()
+    prisma.category.count(),
+    prisma.payment.aggregate({
+      where: { status: "PAID" },
+      _sum: { amount: true }
+    }),
+    prisma.payment.findMany({
+      where: { status: "PAID", createdAt: { gte: sixMonthsAgo } },
+      select: { amount: true, createdAt: true, tutorId: true },
+      orderBy: { createdAt: "asc" }
+    }),
+    prisma.booking.groupBy({
+      by: ["status"],
+      _count: { status: true }
+    }),
+    prisma.course.findMany({
+      include: {
+        category: { select: { name: true } },
+        tutor: { select: { name: true } },
+        _count: { select: { bookings: true, wishlists: true } }
+      }
+    }),
+    prisma.tutorProfile.findMany({
+      include: {
+        user: { select: { id: true, name: true, image: true } },
+        _count: { select: { bookings: true, reviews: true, wishlists: true } }
+      }
+    })
   ]);
+  const monthFormatter = new Intl.DateTimeFormat("en", { month: "short" });
+  const monthlyRevenue = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(sixMonthsAgo);
+    date.setMonth(sixMonthsAgo.getMonth() + index);
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    const total = paidPayments.filter((payment) => {
+      const paymentDate = new Date(payment.createdAt);
+      return `${paymentDate.getFullYear()}-${paymentDate.getMonth()}` === key;
+    }).reduce((sum, payment) => sum + payment.amount, 0);
+    return {
+      month: monthFormatter.format(date),
+      revenue: total
+    };
+  });
+  const bookingStatusData = bookingStatusGroups.map((item) => ({
+    status: item.status,
+    count: item._count.status
+  }));
+  const revenueByTutorId = paidPayments.reduce(
+    (acc, payment) => {
+      acc[payment.tutorId] = (acc[payment.tutorId] ?? 0) + payment.amount;
+      return acc;
+    },
+    {}
+  );
+  const popularCourses = courses.map((course) => ({
+    id: course.id,
+    title: course.title,
+    category: course.category.name,
+    tutor: course.tutor?.name ?? "Unassigned",
+    bookings: course._count.bookings,
+    saved: course._count.wishlists
+  })).sort((a, b) => b.bookings + b.saved - (a.bookings + a.saved)).slice(0, 6);
+  const topTutors = tutors.map((tutor) => ({
+    id: tutor.id,
+    userId: tutor.userId,
+    name: tutor.user.name,
+    image: tutor.user.image,
+    rating: tutor.rating,
+    bookings: tutor._count.bookings,
+    reviews: tutor._count.reviews,
+    saved: tutor._count.wishlists,
+    revenue: revenueByTutorId[tutor.id] ?? 0
+  })).sort((a, b) => b.revenue + b.bookings - (a.revenue + a.bookings)).slice(0, 6);
   const recentBookings = await prisma.booking.findMany({
     take: 5,
     orderBy: { createdAt: "desc" },
@@ -3597,6 +3696,11 @@ var getDashboardStats = async () => {
     totalBookings,
     totalCategories,
     completedBookings,
+    revenue: paidRevenue._sum.amount ?? 0,
+    monthlyRevenue,
+    bookingStatusData,
+    popularCourses,
+    topTutors,
     recentBookings
   };
 };
@@ -5094,9 +5198,17 @@ var paymentSuccess = async (req, res) => {
   }
 };
 var paymentCancel = async (req, res) => {
-  const parsed = stripeCancelSchema.parse(req.query);
-  await PaymentService.markPaymentCancelled(parsed.payment_id);
-  res.redirect(`${getFrontendUrl3()}/dashboard/bookings?payment=cancelled`);
+  try {
+    const parsed = stripeCancelSchema.parse(req.query);
+    await PaymentService.markPaymentCancelled(parsed.payment_id);
+    res.redirect(`${getFrontendUrl3()}/dashboard/bookings?payment=cancelled`);
+  } catch (error) {
+    res.redirect(
+      `${getFrontendUrl3()}/dashboard/bookings?payment=failed&message=${encodeURIComponent(
+        error.message || "Payment cancellation failed"
+      )}`
+    );
+  }
 };
 var getPaymentHistory2 = async (req, res) => {
   try {
@@ -5549,6 +5661,134 @@ router13.delete("/course/:courseId", auth_default("STUDENT" /* STUDENT */), Wish
 router13.delete("/tutor/:tutorId", auth_default("STUDENT" /* STUDENT */), WishlistController.removeTutor);
 var wishlistRouter = router13;
 
+// src/modules/search/search.routes.ts
+import { Router as Router14 } from "express";
+
+// src/modules/search/search.service.ts
+var RESULT_LIMIT = 5;
+var normalizeQuery = (query) => {
+  return String(query ?? "").trim();
+};
+var searchEverything = async (rawQuery) => {
+  const query = normalizeQuery(rawQuery);
+  if (query.length < 2) {
+    return {
+      tutors: [],
+      courses: [],
+      categories: []
+    };
+  }
+  const [tutors, courses, categories] = await Promise.all([
+    prisma.tutorProfile.findMany({
+      take: RESULT_LIMIT,
+      where: {
+        user: { role: "TUTOR", status: "ACTIVE" },
+        OR: [
+          { bio: { contains: query, mode: "insensitive" } },
+          { subjects: { has: query } },
+          { user: { name: { contains: query, mode: "insensitive" } } }
+        ]
+      },
+      select: {
+        id: true,
+        bio: true,
+        subjects: true,
+        rating: true,
+        user: { select: { name: true, image: true } }
+      },
+      orderBy: { rating: "desc" }
+    }),
+    prisma.course.findMany({
+      take: RESULT_LIMIT,
+      where: {
+        OR: [
+          { title: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } },
+          { category: { name: { contains: query, mode: "insensitive" } } },
+          { tutor: { name: { contains: query, mode: "insensitive" } } }
+        ]
+      },
+      select: {
+        id: true,
+        title: true,
+        image: true,
+        category: { select: { name: true } },
+        tutor: { select: { name: true } }
+      },
+      orderBy: [{ isPopular: "desc" }, { createdAt: "desc" }]
+    }),
+    prisma.category.findMany({
+      take: RESULT_LIMIT,
+      where: {
+        OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } }
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        description: true
+      },
+      orderBy: { name: "asc" }
+    })
+  ]);
+  return {
+    tutors: tutors.map((tutor) => ({
+      id: tutor.id,
+      title: tutor.user.name,
+      subtitle: tutor.subjects.slice(0, 3).join(", ") || "Tutor",
+      image: tutor.user.image,
+      href: `/mentors/${tutor.id}`,
+      type: "Tutor"
+    })),
+    courses: courses.map((course) => ({
+      id: course.id,
+      title: course.title,
+      subtitle: course.category.name,
+      image: course.image,
+      href: `/courses/${course.id}`,
+      type: "Course"
+    })),
+    categories: categories.map((category) => ({
+      id: category.id,
+      title: category.name,
+      subtitle: category.description ?? "Course category",
+      image: category.image,
+      href: `/courses?category=${category.id}`,
+      type: "Category"
+    }))
+  };
+};
+var SearchService = {
+  searchEverything
+};
+
+// src/modules/search/search.controller.ts
+var searchEverything2 = async (req, res) => {
+  try {
+    const result = await SearchService.searchEverything(req.query.q);
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Search failed"
+    });
+  }
+};
+var SearchController = {
+  searchEverything: searchEverything2
+};
+
+// src/modules/search/search.routes.ts
+var router14 = Router14();
+router14.get("/", SearchController.searchEverything);
+var searchRouter = router14;
+
 // src/routes.ts
 app_default.use("/categories", categoryRouter);
 app_default.use("/courses", courseRouter);
@@ -5563,6 +5803,7 @@ app_default.use("/payments", paymentRouter);
 app_default.use("/certificates", certificateRouter);
 app_default.use("/notifications", notificationRouter);
 app_default.use("/wishlist", wishlistRouter);
+app_default.use("/search", searchRouter);
 app_default.use(notFound);
 app_default.use(globalErrorHandler_default);
 

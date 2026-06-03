@@ -5,13 +5,28 @@ import { auth } from "./lib/auth";
 
 const app: Application = express();
 
+app.disable("x-powered-by");
+
+const parseOriginList = (value?: string) =>
+  (value ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 const allowedOrigins = Array.from(
   new Set([
-    process.env.APP_URL,
+    ...parseOriginList(process.env.APP_URL),
     "http://localhost:3000",
     "https://skill-bridge-client-two-beta.vercel.app",
-  ].filter(Boolean)),
+  ]),
 );
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
 
 app.use(
   cors({
@@ -27,8 +42,8 @@ app.use(
   }),
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.all("/api/auth/*splat", toNodeHandler(auth));
 app.get("/", (req, res) => {
   res.send("SkillBridge API is running");
@@ -51,12 +66,20 @@ app.use((req, res, next) => {
     return;
   }
 
+  const PUBLIC_CACHEABLE_ROUTES = [
+    "/categories",
+    "/courses/popular",
+    "/reviews",
+  ];
+
+  const COURSE_ROUTE_REGEX = /^\/courses(?:\/[^/]+)?$/;
+
+  const MENTOR_ROUTE_REGEX = /^\/mentors(?:\/[^/]+)?$/;
+
   const isPublicListOrDetail =
-    req.path === "/categories" ||
-    req.path === "/courses/popular" ||
-    /^\/courses(?:\/[^/]+)?$/.test(req.path) ||
-    /^\/mentors(?:\/[^/]+)?$/.test(req.path) ||
-    req.path === "/reviews";
+    PUBLIC_CACHEABLE_ROUTES.includes(req.path) ||
+    COURSE_ROUTE_REGEX.test(req.path) ||
+    MENTOR_ROUTE_REGEX.test(req.path);
 
   if (isPublicListOrDetail) {
     res.setHeader(

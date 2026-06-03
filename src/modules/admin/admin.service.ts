@@ -184,19 +184,113 @@ const getAllBookings = async () => {
 };
 
 const getDashboardStats = async () => {
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+  sixMonthsAgo.setDate(1);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
   const [
     totalUsers,
     totalTutors,
     totalStudents,
     totalBookings,
     totalCategories,
+    paidRevenue,
+    paidPayments,
+    bookingStatusGroups,
+    courses,
+    tutors,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { role: "TUTOR" } }),
     prisma.user.count({ where: { role: "STUDENT" } }),
     prisma.booking.count(),
     prisma.category.count(),
+    prisma.payment.aggregate({
+      where: { status: "PAID" },
+      _sum: { amount: true },
+    }),
+    prisma.payment.findMany({
+      where: { status: "PAID", createdAt: { gte: sixMonthsAgo } },
+      select: { amount: true, createdAt: true, tutorId: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.booking.groupBy({
+      by: ["status"],
+      _count: { status: true },
+    }),
+    prisma.course.findMany({
+      include: {
+        category: { select: { name: true } },
+        tutor: { select: { name: true } },
+        _count: { select: { bookings: true, wishlists: true } },
+      },
+    }),
+    prisma.tutorProfile.findMany({
+      include: {
+        user: { select: { id: true, name: true, image: true } },
+        _count: { select: { bookings: true, reviews: true, wishlists: true } },
+      },
+    }),
   ]);
+
+  const monthFormatter = new Intl.DateTimeFormat("en", { month: "short" });
+  const monthlyRevenue = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(sixMonthsAgo);
+    date.setMonth(sixMonthsAgo.getMonth() + index);
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    const total = paidPayments
+      .filter((payment) => {
+        const paymentDate = new Date(payment.createdAt);
+        return `${paymentDate.getFullYear()}-${paymentDate.getMonth()}` === key;
+      })
+      .reduce((sum, payment) => sum + payment.amount, 0);
+
+    return {
+      month: monthFormatter.format(date),
+      revenue: total,
+    };
+  });
+
+  const bookingStatusData = bookingStatusGroups.map((item) => ({
+    status: item.status,
+    count: item._count.status,
+  }));
+
+  const revenueByTutorId = paidPayments.reduce<Record<string, number>>(
+    (acc, payment) => {
+      acc[payment.tutorId] = (acc[payment.tutorId] ?? 0) + payment.amount;
+      return acc;
+    },
+    {},
+  );
+
+  const popularCourses = courses
+    .map((course) => ({
+      id: course.id,
+      title: course.title,
+      category: course.category.name,
+      tutor: course.tutor?.name ?? "Unassigned",
+      bookings: course._count.bookings,
+      saved: course._count.wishlists,
+    }))
+    .sort((a, b) => b.bookings + b.saved - (a.bookings + a.saved))
+    .slice(0, 6);
+
+  const topTutors = tutors
+    .map((tutor) => ({
+      id: tutor.id,
+      userId: tutor.userId,
+      name: tutor.user.name,
+      image: tutor.user.image,
+      rating: tutor.rating,
+      bookings: tutor._count.bookings,
+      reviews: tutor._count.reviews,
+      saved: tutor._count.wishlists,
+      revenue: revenueByTutorId[tutor.id] ?? 0,
+    }))
+    .sort((a, b) => b.revenue + b.bookings - (a.revenue + a.bookings))
+    .slice(0, 6);
 
   const recentBookings = await prisma.booking.findMany({
     take: 5,
@@ -232,6 +326,11 @@ const getDashboardStats = async () => {
     totalBookings,
     totalCategories,
     completedBookings,
+    revenue: paidRevenue._sum.amount ?? 0,
+    monthlyRevenue,
+    bookingStatusData,
+    popularCourses,
+    topTutors,
     recentBookings,
   };
 };

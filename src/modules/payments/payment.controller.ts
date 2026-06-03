@@ -53,10 +53,18 @@ const paymentSuccess = async (req: Request, res: Response) => {
 };
 
 const paymentCancel = async (req: Request, res: Response) => {
-  const parsed = stripeCancelSchema.parse(req.query);
-  await PaymentService.markPaymentCancelled(parsed.payment_id);
+  try {
+    const parsed = stripeCancelSchema.parse(req.query);
+    await PaymentService.markPaymentCancelled(parsed.payment_id);
 
-  res.redirect(`${getFrontendUrl()}/dashboard/bookings?payment=cancelled`);
+    res.redirect(`${getFrontendUrl()}/dashboard/bookings?payment=cancelled`);
+  } catch (error: any) {
+    res.redirect(
+      `${getFrontendUrl()}/dashboard/bookings?payment=failed&message=${encodeURIComponent(
+        error.message || "Payment cancellation failed",
+      )}`,
+    );
+  }
 };
 
 const getPaymentHistory = async (req: Request, res: Response) => {

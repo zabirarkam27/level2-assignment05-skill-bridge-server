@@ -1,5 +1,5 @@
 import axios from "axios";
-import { lookup } from "node:dns/promises";
+import { lookup as dnsLookup } from "node:dns/promises";
 import net from "node:net";
 import { optimizeImageBuffer } from "./image.optimizer";
 import { uploadOptimizedToCloudinary } from "./image.storage";
@@ -82,7 +82,13 @@ function isPrivateAddress(address: string): boolean {
   return true;
 }
 
-async function validateRemoteImageUrl(input: string): Promise<string> {
+type SafeRemoteUrl = {
+  url: string;
+  address: string;
+  family: 4 | 6;
+};
+
+async function validateRemoteImageUrl(input: string): Promise<SafeRemoteUrl> {
   let parsed: URL;
 
   try {
@@ -100,7 +106,7 @@ async function validateRemoteImageUrl(input: string): Promise<string> {
     throw new Error("Local image URLs are not allowed");
   }
 
-  const addresses = await lookup(hostname, { all: true, verbatim: true });
+  const addresses = await dnsLookup(hostname, { all: true, verbatim: true });
   if (
     addresses.length === 0 ||
     addresses.some(({ address }) => isPrivateAddress(address))
@@ -108,7 +114,16 @@ async function validateRemoteImageUrl(input: string): Promise<string> {
     throw new Error("Private or local image URLs are not allowed");
   }
 
-  return parsed.toString();
+  const [firstAddress] = addresses;
+  if (!firstAddress || (firstAddress.family !== 4 && firstAddress.family !== 6)) {
+    throw new Error("Image URL host could not be resolved safely");
+  }
+
+  return {
+    url: parsed.toString(),
+    address: firstAddress.address,
+    family: firstAddress.family,
+  };
 }
 
 function assertRemoteImageContentType(contentType: unknown): void {
@@ -138,11 +153,23 @@ export const ImageUploadService = {
   ): Promise<UploadImageResult> {
     const preset = parseImagePreset(presetInput);
     const safeUrl = await validateRemoteImageUrl(url);
+    const safeLookup = (
+      hostname: string,
+      options: object,
+      callback: (
+        error: Error | null,
+        address: { address: string; family: 4 | 6 },
+      ) => void,
+    ) => {
+      callback(null, { address: safeUrl.address, family: safeUrl.family });
+    };
 
-    const response = await axios.get(safeUrl, {
+    const response = await axios.get(safeUrl.url, {
       responseType: "arraybuffer",
       maxContentLength: MAX_SOURCE_BYTES,
       maxBodyLength: MAX_SOURCE_BYTES,
+      maxRedirects: 0,
+      lookup: safeLookup,
       timeout: 15000,
       validateStatus: (s) => s === 200,
     });

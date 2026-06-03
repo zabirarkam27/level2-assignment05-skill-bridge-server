@@ -36,8 +36,6 @@ const courseInclude = {
   _count: { select: { wishlists: true } },
 } as const;
 
-const db = prisma as any;
-
 const ensureTutorHasCategory = async (
   tutorId: string,
   categoryId: string,
@@ -106,7 +104,7 @@ export interface CourseFilters {
 }
 
 const getAllCourses = async (filters: CourseFilters = {}) => {
-  return db.course.findMany({
+  return prisma.course.findMany({
     where: {
       ...(filters.popular && { isPopular: true }),
       ...(filters.categoryId && { categoryId: filters.categoryId }),
@@ -127,7 +125,7 @@ const getAllCourses = async (filters: CourseFilters = {}) => {
 };
 
 const getSingleCourse = async (id: string) => {
-  const course = await db.course.findUnique({
+  const course = await prisma.course.findUnique({
     where: { id },
     include: courseInclude,
   });
@@ -148,7 +146,7 @@ const createCourse = async (
 
   await ensureTutorHasCategory(tutorId, payload.categoryId);
 
-  const course = await db.course.create({
+  const course = await prisma.course.create({
     data: {
       title: payload.title,
       description: payload.description || null,
@@ -180,7 +178,7 @@ const updateCourse = async (
   role: string,
   payload: UpdateCoursePayload,
 ) => {
-  const course = await db.course.findUnique({ where: { id } });
+  const course = await prisma.course.findUnique({ where: { id } });
   if (!course) throw new Error("Course not found");
 
   if (role !== "ADMIN" && payload.tutorId !== undefined) {
@@ -201,7 +199,7 @@ const updateCourse = async (
 
   await ensureTutorHasCategory(nextTutorId, nextCategoryId);
 
-  const updatedCourse = await db.course.update({
+  const updatedCourse = await prisma.course.update({
     where: { id },
     data: {
       ...(payload.title !== undefined && { title: payload.title }),
@@ -234,7 +232,7 @@ const updateCourse = async (
 };
 
 const deleteCourse = async (id: string, userId: string, role: string) => {
-  const course = await db.course.findUnique({ where: { id } });
+  const course = await prisma.course.findUnique({ where: { id } });
   if (!course) throw new Error("Course not found");
 
   if (role !== "ADMIN") {
@@ -257,7 +255,7 @@ const requestCourseDelete = async (
   requesterId: string,
   role: string,
 ) => {
-  const course = await db.course.findUnique({
+  const course = await prisma.course.findUnique({
     where: { id },
     include: {
       deleteRequests: {
@@ -394,10 +392,10 @@ const resolveDeleteRequest = async (
 };
 
 const togglePopular = async (id: string, isPopular: boolean) => {
-  const course = await db.course.findUnique({ where: { id } });
+  const course = await prisma.course.findUnique({ where: { id } });
   if (!course) throw new Error("Course not found");
 
-  return db.course.update({
+  return prisma.course.update({
     where: { id },
     data: { isPopular },
     include: courseInclude,

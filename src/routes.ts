@@ -14,6 +14,7 @@ import { paymentRouter } from "./modules/payments/payment.routes";
 import { certificateRouter } from "./modules/certificates/certificate.routes";
 import { notificationRouter } from "./modules/notifications/notification.routes";
 import { wishlistRouter } from "./modules/wishlist/wishlist.routes";
+import { searchRouter } from "./modules/search/search.routes";
 
 app.use("/categories", categoryRouter);
 app.use("/courses", courseRouter);
@@ -28,6 +29,7 @@ app.use("/payments", paymentRouter);
 app.use("/certificates", certificateRouter);
 app.use("/notifications", notificationRouter);
 app.use("/wishlist", wishlistRouter);
+app.use("/search", searchRouter);
 
 app.use(notFound);
 app.use(errorHandler);
