@@ -4,12 +4,14 @@ Backend for the Assignment 5 SkillBridge full-stack project.
 
 ## Live Links
 
-Frontend Live : `https://skil-bridge-client-v2.vercel.app/`
-Backend Live : `https://skil-bridge-server-v2.vercel.app/`
-Demo Video : `https://drive.google.com/file/d/1Qr5mcDZUdXcF5d5FclAMQ_tz59Oao5Vq/view?usp=sharing`
+- [Frontend Live](https://skil-bridge-client-v2.vercel.app/)
+- [Backend Live](https://skil-bridge-server-v2.vercel.app/)
+- [Demo Video](https://drive.google.com/file/d/1Qr5mcDZUdXcF5d5FclAMQ_tz59Oao5Vq/view?usp=sharing)
 
-Frontend Repo : `https://github.com/zabirarkam27/level2-assignment05-skill-bridge-client`
-Backend Repo : `https://github.com/zabirarkam27/level2-assignment05-skill-bridge-server`
+## Repositories
+
+- [Frontend Repository](https://github.com/zabirarkam27/level2-assignment05-skill-bridge-client)
+- [Backend Repository](https://github.com/zabirarkam27/level2-assignment05-skill-bridge-server)
 
 ## Admin Credentials
 
