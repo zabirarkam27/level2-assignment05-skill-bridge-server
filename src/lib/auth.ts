@@ -28,8 +28,8 @@ export const auth = betterAuth({
       authBaseUrl,
       "http://localhost:3000",
       "http://localhost:5000",
-      "https://skill-bridge-client-two-beta.vercel.app",
-      "https://skill-bridge-server-tan.vercel.app",
+      "https://skil-bridge-client-v2.vercel.app",
+      "https://skil-bridge-server-v2.vercel.app",
     ]),
   ),
   advanced: {

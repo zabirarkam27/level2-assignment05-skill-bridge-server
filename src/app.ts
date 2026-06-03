@@ -17,7 +17,7 @@ const allowedOrigins = Array.from(
   new Set([
     ...parseOriginList(process.env.APP_URL),
     "http://localhost:3000",
-    "https://skill-bridge-client-two-beta.vercel.app",
+    "https://skil-bridge-client-v2.vercel.app",
   ]),
 );
 

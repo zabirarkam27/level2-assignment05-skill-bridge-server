@@ -1,11 +1,17 @@
 {
-  "buildCommand": "npm run db:generate",
+  "buildCommand": "npm run build",
   "regions": ["sin1"],
   "functions": {
     "api/index.js": {
       "includeFiles": "prisma/**"
     }
   },
+  "crons": [
+    {
+      "path": "/",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

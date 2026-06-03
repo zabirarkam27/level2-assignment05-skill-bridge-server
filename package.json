@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "npx tsx watch src/server.ts",
+    "build": "npm run db:generate && npx esbuild api/handler.ts --bundle --platform=node --format=esm --outfile=api/index.js --packages=external",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",

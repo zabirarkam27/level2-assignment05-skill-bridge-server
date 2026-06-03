@@ -37,8 +37,8 @@ var auth = betterAuth({
       authBaseUrl,
       "http://localhost:3000",
       "http://localhost:5000",
-      "https://skill-bridge-client-two-beta.vercel.app",
-      "https://skill-bridge-server-tan.vercel.app"
+      "https://skil-bridge-client-v2.vercel.app",
+      "https://skil-bridge-server-v2.vercel.app"
     ])
   ),
   advanced: {
@@ -338,7 +338,7 @@ var allowedOrigins = Array.from(
   /* @__PURE__ */ new Set([
     ...parseOriginList(process.env.APP_URL),
     "http://localhost:3000",
-    "https://skill-bridge-client-two-beta.vercel.app"
+    "https://skil-bridge-client-v2.vercel.app"
   ])
 );
 app.use((req, res, next) => {
@@ -376,7 +376,14 @@ app.use((req, res, next) => {
     next();
     return;
   }
-  const isPublicListOrDetail = req.path === "/categories" || req.path === "/courses/popular" || /^\/courses(?:\/[^/]+)?$/.test(req.path) || /^\/mentors(?:\/[^/]+)?$/.test(req.path) || req.path === "/reviews";
+  const PUBLIC_CACHEABLE_ROUTES = [
+    "/categories",
+    "/courses/popular",
+    "/reviews"
+  ];
+  const COURSE_ROUTE_REGEX = /^\/courses(?:\/[^/]+)?$/;
+  const MENTOR_ROUTE_REGEX = /^\/mentors(?:\/[^/]+)?$/;
+  const isPublicListOrDetail = PUBLIC_CACHEABLE_ROUTES.includes(req.path) || COURSE_ROUTE_REGEX.test(req.path) || MENTOR_ROUTE_REGEX.test(req.path);
   if (isPublicListOrDetail) {
     res.setHeader(
       "Cache-Control",
@@ -2786,6 +2793,28 @@ var ACTIVE_BOOKING_STATUSES = [
   BookingStatus.PENDING,
   BookingStatus.CONFIRMED
 ];
+var hasSessionStarted = (dateTime) => dateTime.getTime() <= Date.now();
+var ensurePendingBooking = (booking) => {
+  if (booking.status !== BookingStatus.PENDING) {
+    throw new Error("Only pending bookings can be confirmed");
+  }
+};
+var ensureConfirmedBooking = (booking) => {
+  if (booking.status !== BookingStatus.CONFIRMED) {
+    throw new Error("Only confirmed sessions can be marked as completed");
+  }
+};
+var ensureSessionCanBeCompleted = (booking) => {
+  ensureConfirmedBooking(booking);
+  if (!hasSessionStarted(booking.dateTime)) {
+    throw new Error("Session cannot be completed before its scheduled time");
+  }
+};
+var ensureAdminCanCancelBooking = (booking) => {
+  if (booking.status !== BookingStatus.PENDING && booking.status !== BookingStatus.CONFIRMED) {
+    throw new Error("Only pending or confirmed bookings can be cancelled");
+  }
+};
 var paymentSelect = {
   id: true,
   bookingId: true,
@@ -3106,7 +3135,17 @@ var updateBookingStatus = async (bookingId, userId, role, status) => {
   }
   if (role === "ADMIN") {
     if (status === "CONFIRMED") {
+      ensurePendingBooking(booking);
+      if (hasSessionStarted(booking.dateTime)) {
+        throw new Error("Past sessions cannot be confirmed");
+      }
       await ensureBookingPaymentPaid(bookingId);
+    }
+    if (status === "CANCELLED") {
+      ensureAdminCanCancelBooking(booking);
+    }
+    if (status === "COMPLETED") {
+      ensureSessionCanBeCompleted(booking);
     }
     const updatedBooking = await prisma.booking.update({
       where: { id: bookingId },
@@ -3153,8 +3192,8 @@ var updateBookingStatus = async (bookingId, userId, role, status) => {
     return updatedBooking;
   }
   if (status === "CANCELLED" && role === "STUDENT") {
-    if (booking.status !== "PENDING" && booking.status !== "CONFIRMED") {
-      throw new Error("Only pending or confirmed bookings can be cancelled");
+    if (booking.status !== "PENDING") {
+      throw new Error("Only pending bookings can be cancelled by students");
     }
     return await prisma.booking.update({
       where: { id: bookingId },
@@ -3179,8 +3218,9 @@ var updateBookingStatus = async (bookingId, userId, role, status) => {
   }
   if (role === "TUTOR") {
     if (status === "CONFIRMED") {
-      if (booking.status !== "PENDING") {
-        throw new Error("Only pending bookings can be confirmed");
+      ensurePendingBooking(booking);
+      if (hasSessionStarted(booking.dateTime)) {
+        throw new Error("Past sessions cannot be confirmed");
       }
       await ensureBookingPaymentPaid(bookingId);
       const confirmedBooking = await prisma.booking.update({
@@ -3201,9 +3241,7 @@ var updateBookingStatus = async (bookingId, userId, role, status) => {
       return calendarBooking ?? confirmedBooking;
     }
     if (status === "COMPLETED") {
-      if (booking.status !== "CONFIRMED") {
-        throw new Error("Only confirmed sessions can be marked as completed");
-      }
+      ensureSessionCanBeCompleted(booking);
       const completedBooking = await prisma.booking.update({
         where: { id: bookingId },
         data: { status: "COMPLETED" }
@@ -5669,16 +5707,18 @@ var RESULT_LIMIT = 5;
 var normalizeQuery = (query) => {
   return String(query ?? "").trim();
 };
-var searchEverything = async (rawQuery) => {
+var searchEverything = async (rawQuery, role) => {
   const query = normalizeQuery(rawQuery);
+  const canSearchUsers = role === "ADMIN";
   if (query.length < 2) {
     return {
       tutors: [],
       courses: [],
-      categories: []
+      categories: [],
+      users: []
     };
   }
-  const [tutors, courses, categories] = await Promise.all([
+  const [tutors, courses, categories, users] = await Promise.all([
     prisma.tutorProfile.findMany({
       take: RESULT_LIMIT,
       where: {
@@ -5732,7 +5772,24 @@ var searchEverything = async (rawQuery) => {
         description: true
       },
       orderBy: { name: "asc" }
-    })
+    }),
+    canSearchUsers ? prisma.user.findMany({
+      take: RESULT_LIMIT,
+      where: {
+        OR: [
+          { email: { contains: query, mode: "insensitive" } },
+          { name: { contains: query, mode: "insensitive" } }
+        ]
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true
+      },
+      orderBy: { createdAt: "desc" }
+    }) : Promise.resolve([])
   ]);
   return {
     tutors: tutors.map((tutor) => ({
@@ -5758,6 +5815,13 @@ var searchEverything = async (rawQuery) => {
       image: category.image,
       href: `/courses?category=${category.id}`,
       type: "Category"
+    })),
+    users: users.map((user) => ({
+      id: user.id,
+      title: user.name,
+      subtitle: `${user.email} - ${user.role}${user.status ? ` - ${user.status}` : ""}`,
+      href: `/admin/users?search=${encodeURIComponent(user.email)}`,
+      type: "User"
     }))
   };
 };
@@ -5768,7 +5832,11 @@ var SearchService = {
 // src/modules/search/search.controller.ts
 var searchEverything2 = async (req, res) => {
   try {
-    const result = await SearchService.searchEverything(req.query.q);
+    const session = await auth.api.getSession({
+      headers: req.headers
+    });
+    const role = session?.user ? session.user.role : void 0;
+    const result = await SearchService.searchEverything(req.query.q, role);
     res.status(200).json({
       success: true,
       data: result
