@@ -17,6 +17,40 @@ const ACTIVE_BOOKING_STATUSES = [
   BookingStatus.CONFIRMED,
 ] as const;
 
+const hasSessionStarted = (dateTime: Date) => dateTime.getTime() <= Date.now();
+
+const ensurePendingBooking = (booking: { status: BookingStatus }) => {
+  if (booking.status !== BookingStatus.PENDING) {
+    throw new Error("Only pending bookings can be confirmed");
+  }
+};
+
+const ensureConfirmedBooking = (booking: { status: BookingStatus }) => {
+  if (booking.status !== BookingStatus.CONFIRMED) {
+    throw new Error("Only confirmed sessions can be marked as completed");
+  }
+};
+
+const ensureSessionCanBeCompleted = (booking: {
+  status: BookingStatus;
+  dateTime: Date;
+}) => {
+  ensureConfirmedBooking(booking);
+
+  if (!hasSessionStarted(booking.dateTime)) {
+    throw new Error("Session cannot be completed before its scheduled time");
+  }
+};
+
+const ensureAdminCanCancelBooking = (booking: { status: BookingStatus }) => {
+  if (
+    booking.status !== BookingStatus.PENDING &&
+    booking.status !== BookingStatus.CONFIRMED
+  ) {
+    throw new Error("Only pending or confirmed bookings can be cancelled");
+  }
+};
+
 const paymentSelect = {
   id: true,
   bookingId: true,
@@ -404,7 +438,19 @@ const updateBookingStatus = async (
 
   if (role === "ADMIN") {
     if (status === "CONFIRMED") {
+      ensurePendingBooking(booking);
+      if (hasSessionStarted(booking.dateTime)) {
+        throw new Error("Past sessions cannot be confirmed");
+      }
       await ensureBookingPaymentPaid(bookingId);
+    }
+
+    if (status === "CANCELLED") {
+      ensureAdminCanCancelBooking(booking);
+    }
+
+    if (status === "COMPLETED") {
+      ensureSessionCanBeCompleted(booking);
     }
 
     const updatedBooking = await prisma.booking.update({
@@ -461,8 +507,8 @@ const updateBookingStatus = async (
   }
 
   if (status === "CANCELLED" && role === "STUDENT") {
-    if (booking.status !== "PENDING" && booking.status !== "CONFIRMED") {
-      throw new Error("Only pending or confirmed bookings can be cancelled");
+    if (booking.status !== "PENDING") {
+      throw new Error("Only pending bookings can be cancelled by students");
     }
     return await prisma.booking.update({
       where: { id: bookingId },
@@ -491,8 +537,10 @@ const updateBookingStatus = async (
 
   if (role === "TUTOR") {
     if (status === "CONFIRMED") {
-      if (booking.status !== "PENDING") {
-        throw new Error("Only pending bookings can be confirmed");
+      ensurePendingBooking(booking);
+
+      if (hasSessionStarted(booking.dateTime)) {
+        throw new Error("Past sessions cannot be confirmed");
       }
 
       await ensureBookingPaymentPaid(bookingId);
@@ -520,9 +568,8 @@ const updateBookingStatus = async (
     }
 
     if (status === "COMPLETED") {
-      if (booking.status !== "CONFIRMED") {
-        throw new Error("Only confirmed sessions can be marked as completed");
-      }
+      ensureSessionCanBeCompleted(booking);
+
       const completedBooking = await prisma.booking.update({
         where: { id: bookingId },
         data: { status: "COMPLETED" },

@@ -6,18 +6,20 @@ const normalizeQuery = (query: unknown) => {
   return String(query ?? "").trim();
 };
 
-const searchEverything = async (rawQuery: unknown) => {
+const searchEverything = async (rawQuery: unknown, role?: string) => {
   const query = normalizeQuery(rawQuery);
+  const canSearchUsers = role === "ADMIN";
 
   if (query.length < 2) {
     return {
       tutors: [],
       courses: [],
       categories: [],
+      users: [],
     };
   }
 
-  const [tutors, courses, categories] = await Promise.all([
+  const [tutors, courses, categories, users] = await Promise.all([
     prisma.tutorProfile.findMany({
       take: RESULT_LIMIT,
       where: {
@@ -72,6 +74,25 @@ const searchEverything = async (rawQuery: unknown) => {
       },
       orderBy: { name: "asc" },
     }),
+    canSearchUsers
+      ? prisma.user.findMany({
+          take: RESULT_LIMIT,
+          where: {
+            OR: [
+              { email: { contains: query, mode: "insensitive" } },
+              { name: { contains: query, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            status: true,
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   return {
@@ -98,6 +119,13 @@ const searchEverything = async (rawQuery: unknown) => {
       image: category.image,
       href: `/courses?category=${category.id}`,
       type: "Category",
+    })),
+    users: users.map((user) => ({
+      id: user.id,
+      title: user.name,
+      subtitle: `${user.email} - ${user.role}${user.status ? ` - ${user.status}` : ""}`,
+      href: `/admin/users?search=${encodeURIComponent(user.email)}`,
+      type: "User",
     })),
   };
 };
