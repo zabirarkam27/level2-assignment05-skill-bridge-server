@@ -21,6 +21,7 @@ model User {
   certificates       Certificate[]
   notifications      Notification[]
   wishlists          Wishlist[]
+  blogPosts          BlogPost[]    @relation("BlogPosts")
 
   @@map("user")
 }

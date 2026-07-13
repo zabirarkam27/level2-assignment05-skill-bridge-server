@@ -80,7 +80,7 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       try {
         await transporter.sendMail({
-          from: '"Skill Bridge" <skillbridge.noreply@gmail.com>',
+          from: '"MentorForge" <mentorforge.noreply@gmail.com>',
           to: user.email,
           subject: "Reset your password",
           html: `<!DOCTYPE html>
@@ -88,7 +88,7 @@ export const auth = betterAuth({
               <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>Reset your password – Skill Bridge</title>
+                <title>Reset your password – MentorForge</title>
                 <style>
                   body { margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
                   .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06); }
@@ -107,7 +107,7 @@ export const auth = betterAuth({
               <body>
                 <div class="container">
                   <div class="header">
-                    <h1>Skill Bridge</h1>
+                    <h1>MentorForge</h1>
                     <p>Connect with expert tutors, learn anything</p>
                   </div>
                   <div class="content">
@@ -120,9 +120,9 @@ export const auth = betterAuth({
                     <p>If the button doesn't work, copy and paste this link into your browser:</p>
                     <div class="link-box">${url}</div>
                     <p style="margin-top: 24px;">This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.</p>
-                    <p>Stay secure,<br /><strong>Skill Bridge Team</strong></p>
+                    <p>Stay secure,<br /><strong>MentorForge Team</strong></p>
                   </div>
-                  <div class="footer">© 2026 <strong>Skill Bridge</strong>. All rights reserved.<br />Learn. Grow. Succeed.</div>
+                  <div class="footer">© 2026 <strong>MentorForge</strong>. All rights reserved.<br />Learn. Grow. Succeed.</div>
                 </div>
               </body>
             </html>`,
@@ -140,7 +140,7 @@ export const auth = betterAuth({
       try {
         const verificationUrl = `${process.env.APP_URL}/verify-email?token=${token}`;
         await transporter.sendMail({
-          from: '"Skill Bridge" <skillbridge.noreply@gmail.com>',
+          from: '"MentorForge" <mentorforge.noreply@gmail.com>',
           to: user.email,
           subject: "Verify your email address",
           html: `<!DOCTYPE html>
@@ -148,7 +148,7 @@ export const auth = betterAuth({
               <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>Verify your email – Skill Bridge</title>
+                <title>Verify your email – MentorForge</title>
                 <style>
                   body {
                     margin: 0;
@@ -246,7 +246,7 @@ export const auth = betterAuth({
                 <div class="container">
                   <!-- Header -->
                   <div class="header">
-                    <h1>Skill Bridge</h1>
+                    <h1>MentorForge</h1>
                     <p>Connect with expert tutors, learn anything</p>
                   </div>
 
@@ -259,7 +259,7 @@ export const auth = betterAuth({
                     </p>
 
                     <p>
-                      Welcome to <strong>Skill Bridge</strong> 🎓
+                      Welcome to <strong>MentorForge</strong> 🎓
                       You're just one step away from accessing expert tutors and starting
                       your learning journey.
                     </p>
@@ -283,19 +283,19 @@ export const auth = betterAuth({
                     </div>
 
                     <p style="margin-top: 24px;">
-                      If you didn’t create an account on Skill Bridge, you can safely ignore
+                      If you didn’t create an account on MentorForge, you can safely ignore
                       this email.
                     </p>
 
                     <p>
                       Happy learning,<br />
-                      <strong>Skill Bridge Team</strong>
+                      <strong>MentorForge Team</strong>
                     </p>
                   </div>
 
                   <!-- Footer -->
                   <div class="footer">
-                    © 2026 <strong>Skill Bridge</strong>. All rights reserved.<br />
+                    © 2026 <strong>MentorForge</strong>. All rights reserved.<br />
                     Learn. Grow. Succeed.
                   </div>
                 </div>
@@ -312,14 +312,7 @@ export const auth = betterAuth({
 
   socialProviders: {
     google: {
-      prompt: "select_account consent",
-      accessType: "offline",
-      scope: [
-        "openid",
-        "email",
-        "profile",
-        "https://www.googleapis.com/auth/calendar",
-      ],
+      prompt: "select_account",
       clientId: process.env.GOOGLE_CLIENT_ID! as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET! as string,
     },

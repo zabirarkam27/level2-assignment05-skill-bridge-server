@@ -46,7 +46,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.all("/api/auth/*splat", toNodeHandler(auth));
 app.get("/", (req, res) => {
-  res.send("SkillBridge API is running");
+  res.send("MentorForge API is running");
 });
 
 app.use((req, res, next) => {

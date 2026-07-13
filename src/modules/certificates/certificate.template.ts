@@ -173,7 +173,7 @@ export function renderCertificatePdf(certificate: CertificatePdfData) {
     },
   );
 
-  const instructor = certificate.course.tutor?.name ?? "SkillBridge Instructor";
+  const instructor = certificate.course.tutor?.name ?? "MentorForge Instructor";
   const category = certificate.course.category?.name ?? "Professional Learning";
   const centerX = 421;
 
@@ -184,8 +184,8 @@ export function renderCertificatePdf(certificate: CertificatePdfData) {
     rect(60, 505, 722, 2, [0.74, 0.52, 0.18]),
     rect(60, 86, 722, 2, [0.74, 0.52, 0.18]),
 
-    centeredText("SkillBridge", centerX, 522, 25, "F2", [0.38, 0.12, 0.41], 32),
-    centeredText("Official SkillBridge Certification", centerX, 496, 10, "F1", [0.47, 0.38, 0.22], 48),
+    centeredText("MentorForge", centerX, 522, 25, "F2", [0.38, 0.12, 0.41], 32),
+    centeredText("Official MentorForge Certification", centerX, 496, 10, "F1", [0.47, 0.38, 0.22], 48),
     centeredText("Certificate of Completion", centerX, 436, 30, "F2", [0.05, 0.08, 0.16], 46),
     centeredText("This certificate is proudly awarded to", centerX, 398, 12, "F1", [0.39, 0.45, 0.55], 54),
     centeredText(certificate.student.name, centerX, 352, 34, "F3", [0.38, 0.12, 0.41], 42),

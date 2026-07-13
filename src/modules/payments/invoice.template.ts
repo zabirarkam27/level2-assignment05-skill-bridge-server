@@ -213,9 +213,9 @@ export function renderInvoicePdf(payment: InvoicePayment) {
     ),
 
     // Header text
-    coloredText("SkillBridge Invoice", 28, 742, 20, "F2", [1, 1, 1], 34),
+    coloredText("MentorForge Invoice", 28, 742, 20, "F2", [1, 1, 1], 34),
     coloredText(
-      "Thank you for learning with SkillBridge.",
+      "Thank you for learning with MentorForge.",
       28,
       722,
       8,
@@ -286,7 +286,7 @@ export function renderInvoicePdf(payment: InvoicePayment) {
 
     // Footer
     coloredText(
-      "This invoice confirms your SkillBridge booking and payment record.",
+      "This invoice confirms your MentorForge booking and payment record.",
       130,
       38,
       8,

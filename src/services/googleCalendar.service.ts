@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { google } from "googleapis";
 import { prisma } from "../lib/prisma";
+import { logger } from "../utils/logger";
 
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 const SESSION_DURATION_MINUTES = 60;
@@ -117,7 +118,7 @@ const createBookingCalendarEvent = async (bookingId: string) => {
     const endDate = new Date(
       startDate.getTime() + SESSION_DURATION_MINUTES * 60 * 1000,
     );
-    const courseTitle = booking.course?.title ?? "SkillBridge Session";
+    const courseTitle = booking.course?.title ?? "MentorForge Session";
 
     const event = await calendarClient.calendar.events.insert({
       calendarId: "primary",
@@ -125,7 +126,7 @@ const createBookingCalendarEvent = async (bookingId: string) => {
       sendUpdates: "all",
       requestBody: {
         summary: `${courseTitle} Session`,
-        description: `SkillBridge tutor booking session.\n\nStudent: ${booking.student.name}\nTutor: ${booking.tutor.user.name}`,
+        description: `MentorForge tutor booking session.\n\nStudent: ${booking.student.name}\nTutor: ${booking.tutor.user.name}`,
         start: {
           dateTime: startDate.toISOString(),
         },
@@ -170,7 +171,7 @@ const createBookingCalendarEvent = async (bookingId: string) => {
       },
     });
   } catch (error) {
-    console.error("Failed to create Google Calendar event", error);
+    logger.error("Failed to create Google Calendar event", error, { bookingId });
     return null;
   }
 };
@@ -218,7 +219,7 @@ const deleteBookingCalendarEvent = async (bookingId: string) => {
       },
     });
   } catch (error) {
-    console.error("Failed to delete Google Calendar event", error);
+    logger.error("Failed to delete Google Calendar event", error, { bookingId });
     return null;
   }
 };

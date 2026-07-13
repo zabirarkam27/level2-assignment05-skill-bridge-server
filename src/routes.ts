@@ -15,6 +15,8 @@ import { certificateRouter } from "./modules/certificates/certificate.routes";
 import { notificationRouter } from "./modules/notifications/notification.routes";
 import { wishlistRouter } from "./modules/wishlist/wishlist.routes";
 import { searchRouter } from "./modules/search/search.routes";
+import { contactRouter } from "./modules/contact/contact.routes";
+import { blogRouter } from "./modules/blogs/blog.routes";
 
 app.use("/categories", categoryRouter);
 app.use("/courses", courseRouter);
@@ -30,6 +32,8 @@ app.use("/certificates", certificateRouter);
 app.use("/notifications", notificationRouter);
 app.use("/wishlist", wishlistRouter);
 app.use("/search", searchRouter);
+app.use("/contact", contactRouter);
+app.use("/blogs", blogRouter);
 
 app.use(notFound);
 app.use(errorHandler);

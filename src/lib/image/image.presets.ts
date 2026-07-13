@@ -12,25 +12,25 @@ export const IMAGE_PRESETS: Record<ImagePreset, ImagePresetConfig> = {
     maxWidth: 400,
     maxHeight: 400,
     quality: 82,
-    cloudinaryFolder: "skill-bridge/avatars",
+    cloudinaryFolder: "mentorforge/avatars",
   },
   course: {
     maxWidth: 1200,
     maxHeight: 800,
     quality: 78,
-    cloudinaryFolder: "skill-bridge/courses",
+    cloudinaryFolder: "mentorforge/courses",
   },
   category: {
     maxWidth: 900,
     maxHeight: 506,
     quality: 76,
-    cloudinaryFolder: "skill-bridge/categories",
+    cloudinaryFolder: "mentorforge/categories",
   },
   general: {
     maxWidth: 1600,
     maxHeight: 1200,
     quality: 78,
-    cloudinaryFolder: "skill-bridge/uploads",
+    cloudinaryFolder: "mentorforge/uploads",
   },
 };
 

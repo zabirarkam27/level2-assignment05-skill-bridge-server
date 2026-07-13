@@ -1,6 +1,6 @@
-# SkillBridge Server
+# MentorForge Server
 
-Backend for the Assignment 5 SkillBridge full-stack project.
+Backend for the Assignment 5 MentorForge full-stack project.
 
 ## Live Links
 
@@ -13,10 +13,20 @@ Backend for the Assignment 5 SkillBridge full-stack project.
 - [Frontend Repository](https://github.com/zabirarkam27/level2-assignment05-skill-bridge-client)
 - [Backend Repository](https://github.com/zabirarkam27/level2-assignment05-skill-bridge-server)
 
-## Admin Credentials
+## Demo Credentials
 
-- Email: `admin@skillbridge.com`
+### Admin
+
+- Email: `admin@mentorforge.com`
 - Password: `admin1234`
+
+### Student
+
+- Use the frontend registration page to create a student account, or use Google login with an allowed account.
+
+### Tutor
+
+- Create a tutor account from registration, then approve it from the admin dashboard before testing tutor-only routes.
 
 Run `npm run db:seed:admin` after `npm run db:push` to create/update this admin account.
 

@@ -3,7 +3,7 @@ import { hashPassword } from "better-auth/crypto";
 
 async function seedAdmin() {
   try {
-    const adminEmail = "admin@skillbridge.com";
+    const adminEmail = "admin@mentorforge.com";
     const adminPassword = process.env.ADMIN_PASSWORD || "admin1234";
     const hashedPassword = await hashPassword(adminPassword);
 

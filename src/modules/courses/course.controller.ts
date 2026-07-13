@@ -11,6 +11,12 @@ const getAllCourses = async (req: Request, res: Response) => {
     const popular = req.query.popular === "true";
     const categoryId = req.query.categoryId as string | undefined;
     const mine = req.query.mine === "true";
+    const search = req.query.search as string | undefined;
+    const sortBy = req.query.sortBy as string | undefined;
+    const sortOrder =
+      req.query.sortOrder === "asc" || req.query.sortOrder === "desc"
+        ? req.query.sortOrder
+        : undefined;
 
     if (mine && !req.user?.id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
@@ -19,13 +25,18 @@ const getAllCourses = async (req: Request, res: Response) => {
     const filters: Parameters<typeof CourseService.getAllCourses>[0] = {
       ...(popular && { popular: true }),
       ...(categoryId && { categoryId }),
+      ...(search && { search }),
+      ...(req.query.page && { page: req.query.page as string }),
+      ...(req.query.limit && { limit: req.query.limit as string }),
+      ...(sortBy && { sortBy }),
+      ...(sortOrder && { sortOrder }),
       ...(mine &&
         req.user?.id &&
         req.user?.role && { mineUserId: req.user.id, mineRole: req.user.role }),
     };
 
     const result = await CourseService.getAllCourses(filters);
-    res.status(200).json({ success: true, data: result });
+    res.status(200).json({ success: true, ...result });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });
   }
@@ -33,7 +44,7 @@ const getAllCourses = async (req: Request, res: Response) => {
 
 const getPopularCourses = async (req: Request, res: Response) => {
   try {
-    const result = await CourseService.getAllCourses({ popular: true });
+    const result = await CourseService.getFeaturedCourses();
     res.status(200).json({ success: true, data: result });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });

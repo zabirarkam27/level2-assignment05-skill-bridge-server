@@ -506,7 +506,7 @@ const approveTutor = async (userId: string) => {
   await NotificationService.createNotification({
     userId,
     title: "Tutor Request Approved",
-    message: "You are now an approved tutor on SkillBridge",
+    message: "You are now an approved tutor on MentorForge",
     type: "TUTOR_REQUEST_APPROVED",
     link: "/tutor/dashboard",
     entityId: userId,

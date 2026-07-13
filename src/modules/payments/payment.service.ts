@@ -107,7 +107,7 @@ const initiatePayment = async (
           unit_amount: toStripeUnitAmount(amount, currency),
           product_data: {
             name: course.title,
-            description: `SkillBridge session with ${tutor.user?.name ?? "Tutor"}`,
+            description: `MentorForge session with ${tutor.user?.name ?? "Tutor"}`,
           },
         },
       },
@@ -369,7 +369,7 @@ const createInvoicePdf = async (
   const payment = await getPaymentForInvoice(paymentId, userId, role);
 
   return {
-    filename: `skillbridge-invoice-${payment.transactionId}.pdf`,
+    filename: `mentorforge-invoice-${payment.transactionId}.pdf`,
     buffer: renderInvoicePdf(payment),
   };
 };

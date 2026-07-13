@@ -37,7 +37,7 @@ const buildVerificationUrl = (certificateNo: string) =>
   `${getFrontendUrl()}/certificate/${encodeURIComponent(certificateNo)}`;
 
 const createCertificateNo = () =>
-  `SKILLBRIDGE-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+  `MENTORFORGE-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
 
 const issueCertificate = async (studentId: string, courseId: string) => {
   const existing = await prisma.certificate.findUnique({
@@ -214,7 +214,7 @@ const createCertificatePdf = async (
   });
 
   return {
-    filename: `skillbridge-certificate-${certificate.certificateNo}.pdf`,
+    filename: `mentorforge-certificate-${certificate.certificateNo}.pdf`,
     buffer,
   };
 };

@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma";
 import { CourseDeleteRequestStatus } from "@prisma/client";
 import { CreateCoursePayload, UpdateCoursePayload } from "./course.validation";
 import { NotificationService } from "../notifications/notification.service";
+import paginationSortingHelper from "../../helpers/paginationSortingHelper";
 
 const courseInclude = {
   category: {
@@ -101,26 +102,104 @@ export interface CourseFilters {
   tutorId?: string;
   mineUserId?: string;
   mineRole?: string;
+  search?: string;
+  page?: number | string;
+  limit?: number | string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }
 
 const getAllCourses = async (filters: CourseFilters = {}) => {
-  return prisma.course.findMany({
-    where: {
-      ...(filters.popular && { isPopular: true }),
-      ...(filters.categoryId && { categoryId: filters.categoryId }),
-      ...(filters.createdById && { createdById: filters.createdById }),
-      ...(filters.tutorId && { tutorId: filters.tutorId }),
-      ...(filters.mineUserId &&
-        filters.mineRole === "TUTOR" && {
-          tutorId: filters.mineUserId,
-        }),
-      ...(filters.mineUserId &&
-        filters.mineRole === "ADMIN" && {
-          createdById: filters.mineUserId,
-        }),
+  const { page, limit, skip, sortBy, sortOrder } = paginationSortingHelper({
+    page: filters.page,
+    limit: filters.limit,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder,
+  });
+
+  const where = {
+    ...(filters.popular && { isPopular: true }),
+    ...(filters.categoryId && { categoryId: filters.categoryId }),
+    ...(filters.createdById && { createdById: filters.createdById }),
+    ...(filters.tutorId && { tutorId: filters.tutorId }),
+    ...(filters.mineUserId &&
+      filters.mineRole === "TUTOR" && {
+        tutorId: filters.mineUserId,
+      }),
+    ...(filters.mineUserId &&
+      filters.mineRole === "ADMIN" && {
+        createdById: filters.mineUserId,
+      }),
+    ...(filters.search && {
+      OR: [
+        { title: { contains: filters.search, mode: "insensitive" as const } },
+        {
+          description: {
+            contains: filters.search,
+            mode: "insensitive" as const,
+          },
+        },
+        {
+          category: {
+            name: { contains: filters.search, mode: "insensitive" as const },
+          },
+        },
+        {
+          tutor: {
+            name: { contains: filters.search, mode: "insensitive" as const },
+          },
+        },
+      ],
+    }),
+  };
+
+  const orderBy =
+    sortBy === "title"
+      ? [{ title: sortOrder }]
+      : sortBy === "category"
+        ? [{ category: { name: sortOrder } }]
+        : sortBy === "popular"
+          ? [{ isPopular: sortOrder }]
+          : [{ createdAt: sortOrder }];
+
+  const [data, total] = await prisma.$transaction([
+    prisma.course.findMany({
+      where,
+      include: courseInclude,
+      orderBy,
+      skip,
+      take: limit,
+    }),
+    prisma.course.count({ where }),
+  ]);
+
+  return {
+    data,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     },
+  };
+};
+
+const getCourseList = async (filters: Omit<CourseFilters, "page" | "limit"> = {}) => {
+  const result = await getAllCourses({
+    ...filters,
+    page: 1,
+    limit: 100,
+  });
+
+  return result.data;
+};
+
+const getFeaturedCourses = async () => {
+  return prisma.course.findMany({
+    where: { isPopular: true },
     include: courseInclude,
     orderBy: [{ isPopular: "desc" }, { createdAt: "desc" }],
+    take: 12,
   });
 };
 
@@ -404,6 +483,8 @@ const togglePopular = async (id: string, isPopular: boolean) => {
 
 export const CourseService = {
   getAllCourses,
+  getCourseList,
+  getFeaturedCourses,
   getSingleCourse,
   createCourse,
   updateCourse,

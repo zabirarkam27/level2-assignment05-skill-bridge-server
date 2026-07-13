@@ -86,7 +86,7 @@ var auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       try {
         await transporter.sendMail({
-          from: '"Skill Bridge" <skillbridge.noreply@gmail.com>',
+          from: '"MentorForge" <mentorforge.noreply@gmail.com>',
           to: user.email,
           subject: "Reset your password",
           html: `<!DOCTYPE html>
@@ -94,7 +94,7 @@ var auth = betterAuth({
               <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>Reset your password \u2013 Skill Bridge</title>
+                <title>Reset your password \u2013 MentorForge</title>
                 <style>
                   body { margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
                   .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06); }
@@ -113,7 +113,7 @@ var auth = betterAuth({
               <body>
                 <div class="container">
                   <div class="header">
-                    <h1>Skill Bridge</h1>
+                    <h1>MentorForge</h1>
                     <p>Connect with expert tutors, learn anything</p>
                   </div>
                   <div class="content">
@@ -126,9 +126,9 @@ var auth = betterAuth({
                     <p>If the button doesn't work, copy and paste this link into your browser:</p>
                     <div class="link-box">${url}</div>
                     <p style="margin-top: 24px;">This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.</p>
-                    <p>Stay secure,<br /><strong>Skill Bridge Team</strong></p>
+                    <p>Stay secure,<br /><strong>MentorForge Team</strong></p>
                   </div>
-                  <div class="footer">\xA9 2026 <strong>Skill Bridge</strong>. All rights reserved.<br />Learn. Grow. Succeed.</div>
+                  <div class="footer">\xA9 2026 <strong>MentorForge</strong>. All rights reserved.<br />Learn. Grow. Succeed.</div>
                 </div>
               </body>
             </html>`
@@ -145,7 +145,7 @@ var auth = betterAuth({
       try {
         const verificationUrl = `${process.env.APP_URL}/verify-email?token=${token}`;
         await transporter.sendMail({
-          from: '"Skill Bridge" <skillbridge.noreply@gmail.com>',
+          from: '"MentorForge" <mentorforge.noreply@gmail.com>',
           to: user.email,
           subject: "Verify your email address",
           html: `<!DOCTYPE html>
@@ -153,7 +153,7 @@ var auth = betterAuth({
               <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>Verify your email \u2013 Skill Bridge</title>
+                <title>Verify your email \u2013 MentorForge</title>
                 <style>
                   body {
                     margin: 0;
@@ -251,7 +251,7 @@ var auth = betterAuth({
                 <div class="container">
                   <!-- Header -->
                   <div class="header">
-                    <h1>Skill Bridge</h1>
+                    <h1>MentorForge</h1>
                     <p>Connect with expert tutors, learn anything</p>
                   </div>
 
@@ -264,7 +264,7 @@ var auth = betterAuth({
                     </p>
 
                     <p>
-                      Welcome to <strong>Skill Bridge</strong> \u{1F393}
+                      Welcome to <strong>MentorForge</strong> \u{1F393}
                       You're just one step away from accessing expert tutors and starting
                       your learning journey.
                     </p>
@@ -288,19 +288,19 @@ var auth = betterAuth({
                     </div>
 
                     <p style="margin-top: 24px;">
-                      If you didn\u2019t create an account on Skill Bridge, you can safely ignore
+                      If you didn\u2019t create an account on MentorForge, you can safely ignore
                       this email.
                     </p>
 
                     <p>
                       Happy learning,<br />
-                      <strong>Skill Bridge Team</strong>
+                      <strong>MentorForge Team</strong>
                     </p>
                   </div>
 
                   <!-- Footer -->
                   <div class="footer">
-                    \xA9 2026 <strong>Skill Bridge</strong>. All rights reserved.<br />
+                    \xA9 2026 <strong>MentorForge</strong>. All rights reserved.<br />
                     Learn. Grow. Succeed.
                   </div>
                 </div>
@@ -315,14 +315,7 @@ var auth = betterAuth({
   },
   socialProviders: {
     google: {
-      prompt: "select_account consent",
-      accessType: "offline",
-      scope: [
-        "openid",
-        "email",
-        "profile",
-        "https://www.googleapis.com/auth/calendar"
-      ],
+      prompt: "select_account",
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET
     }
@@ -363,7 +356,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.all("/api/auth/*splat", toNodeHandler(auth));
 app.get("/", (req, res) => {
-  res.send("SkillBridge API is running");
+  res.send("MentorForge API is running");
 });
 app.use((req, res, next) => {
   if (req.method !== "GET") {
@@ -521,25 +514,25 @@ var IMAGE_PRESETS = {
     maxWidth: 400,
     maxHeight: 400,
     quality: 82,
-    cloudinaryFolder: "skill-bridge/avatars"
+    cloudinaryFolder: "mentorforge/avatars"
   },
   course: {
     maxWidth: 1200,
     maxHeight: 800,
     quality: 78,
-    cloudinaryFolder: "skill-bridge/courses"
+    cloudinaryFolder: "mentorforge/courses"
   },
   category: {
     maxWidth: 900,
     maxHeight: 506,
     quality: 76,
-    cloudinaryFolder: "skill-bridge/categories"
+    cloudinaryFolder: "mentorforge/categories"
   },
   general: {
     maxWidth: 1600,
     maxHeight: 1200,
     quality: 78,
-    cloudinaryFolder: "skill-bridge/uploads"
+    cloudinaryFolder: "mentorforge/uploads"
   }
 };
 var IMAGE_PRESET_VALUES = Object.keys(IMAGE_PRESETS);
@@ -1058,6 +1051,17 @@ var NotificationService = {
   deleteNotification
 };
 
+// src/helpers/paginationSortingHelper.ts
+var paginationSortingHelper = (options) => {
+  const page = Number(options.page) || 1;
+  const limit = Number(options.limit) || 10;
+  const skip = (page - 1) * limit;
+  const sortBy = options.sortBy || "createdAt";
+  const sortOrder = options.sortOrder || "desc";
+  return { page, limit, skip, sortBy, sortOrder };
+};
+var paginationSortingHelper_default = paginationSortingHelper;
+
 // src/modules/courses/course.service.ts
 var courseInclude = {
   category: {
@@ -1135,21 +1139,80 @@ var ensureTutorHasCategory = async (tutorId, categoryId) => {
   return { tutor, category };
 };
 var getAllCourses = async (filters = {}) => {
-  return prisma.course.findMany({
-    where: {
-      ...filters.popular && { isPopular: true },
-      ...filters.categoryId && { categoryId: filters.categoryId },
-      ...filters.createdById && { createdById: filters.createdById },
-      ...filters.tutorId && { tutorId: filters.tutorId },
-      ...filters.mineUserId && filters.mineRole === "TUTOR" && {
-        tutorId: filters.mineUserId
-      },
-      ...filters.mineUserId && filters.mineRole === "ADMIN" && {
-        createdById: filters.mineUserId
-      }
+  const { page, limit, skip, sortBy, sortOrder } = paginationSortingHelper_default({
+    page: filters.page,
+    limit: filters.limit,
+    sortBy: filters.sortBy,
+    sortOrder: filters.sortOrder
+  });
+  const where = {
+    ...filters.popular && { isPopular: true },
+    ...filters.categoryId && { categoryId: filters.categoryId },
+    ...filters.createdById && { createdById: filters.createdById },
+    ...filters.tutorId && { tutorId: filters.tutorId },
+    ...filters.mineUserId && filters.mineRole === "TUTOR" && {
+      tutorId: filters.mineUserId
     },
+    ...filters.mineUserId && filters.mineRole === "ADMIN" && {
+      createdById: filters.mineUserId
+    },
+    ...filters.search && {
+      OR: [
+        { title: { contains: filters.search, mode: "insensitive" } },
+        {
+          description: {
+            contains: filters.search,
+            mode: "insensitive"
+          }
+        },
+        {
+          category: {
+            name: { contains: filters.search, mode: "insensitive" }
+          }
+        },
+        {
+          tutor: {
+            name: { contains: filters.search, mode: "insensitive" }
+          }
+        }
+      ]
+    }
+  };
+  const orderBy = sortBy === "title" ? [{ title: sortOrder }] : sortBy === "category" ? [{ category: { name: sortOrder } }] : sortBy === "popular" ? [{ isPopular: sortOrder }] : [{ createdAt: sortOrder }];
+  const [data, total] = await prisma.$transaction([
+    prisma.course.findMany({
+      where,
+      include: courseInclude,
+      orderBy,
+      skip,
+      take: limit
+    }),
+    prisma.course.count({ where })
+  ]);
+  return {
+    data,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit))
+    }
+  };
+};
+var getCourseList = async (filters = {}) => {
+  const result = await getAllCourses({
+    ...filters,
+    page: 1,
+    limit: 100
+  });
+  return result.data;
+};
+var getFeaturedCourses = async () => {
+  return prisma.course.findMany({
+    where: { isPopular: true },
     include: courseInclude,
-    orderBy: [{ isPopular: "desc" }, { createdAt: "desc" }]
+    orderBy: [{ isPopular: "desc" }, { createdAt: "desc" }],
+    take: 12
   });
 };
 var getSingleCourse = async (id) => {
@@ -1374,6 +1437,8 @@ var togglePopular = async (id, isPopular) => {
 };
 var CourseService = {
   getAllCourses,
+  getCourseList,
+  getFeaturedCourses,
   getSingleCourse,
   createCourse,
   updateCourse,
@@ -1410,23 +1475,31 @@ var getAllCourses2 = async (req, res) => {
     const popular = req.query.popular === "true";
     const categoryId = req.query.categoryId;
     const mine = req.query.mine === "true";
+    const search = req.query.search;
+    const sortBy = req.query.sortBy;
+    const sortOrder = req.query.sortOrder === "asc" || req.query.sortOrder === "desc" ? req.query.sortOrder : void 0;
     if (mine && !req.user?.id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
     const filters = {
       ...popular && { popular: true },
       ...categoryId && { categoryId },
+      ...search && { search },
+      ...req.query.page && { page: req.query.page },
+      ...req.query.limit && { limit: req.query.limit },
+      ...sortBy && { sortBy },
+      ...sortOrder && { sortOrder },
       ...mine && req.user?.id && req.user?.role && { mineUserId: req.user.id, mineRole: req.user.role }
     };
     const result = await CourseService.getAllCourses(filters);
-    res.status(200).json({ success: true, data: result });
+    res.status(200).json({ success: true, ...result });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 var getPopularCourses = async (req, res) => {
   try {
-    const result = await CourseService.getAllCourses({ popular: true });
+    const result = await CourseService.getFeaturedCourses();
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -2367,7 +2440,7 @@ function renderCertificatePdf(certificate) {
       day: "numeric"
     }
   );
-  const instructor = certificate.course.tutor?.name ?? "SkillBridge Instructor";
+  const instructor = certificate.course.tutor?.name ?? "MentorForge Instructor";
   const category = certificate.course.category?.name ?? "Professional Learning";
   const centerX = 421;
   const contentLines = [
@@ -2376,8 +2449,8 @@ function renderCertificatePdf(certificate) {
     strokeRect(42, 42, 758, 511, 0.9, [0.86, 0.72, 0.36]),
     rect(60, 505, 722, 2, [0.74, 0.52, 0.18]),
     rect(60, 86, 722, 2, [0.74, 0.52, 0.18]),
-    centeredText("SkillBridge", centerX, 522, 25, "F2", [0.38, 0.12, 0.41], 32),
-    centeredText("Official SkillBridge Certification", centerX, 496, 10, "F1", [0.47, 0.38, 0.22], 48),
+    centeredText("MentorForge", centerX, 522, 25, "F2", [0.38, 0.12, 0.41], 32),
+    centeredText("Official MentorForge Certification", centerX, 496, 10, "F1", [0.47, 0.38, 0.22], 48),
     centeredText("Certificate of Completion", centerX, 436, 30, "F2", [0.05, 0.08, 0.16], 46),
     centeredText("This certificate is proudly awarded to", centerX, 398, 12, "F1", [0.39, 0.45, 0.55], 54),
     centeredText(certificate.student.name, centerX, 352, 34, "F3", [0.38, 0.12, 0.41], 42),
@@ -2430,7 +2503,7 @@ var certificateInclude = {
 };
 var getFrontendUrl = () => process.env.APP_URL || "http://localhost:3000";
 var buildVerificationUrl = (certificateNo) => `${getFrontendUrl()}/certificate/${encodeURIComponent(certificateNo)}`;
-var createCertificateNo = () => `SKILLBRIDGE-${crypto2.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+var createCertificateNo = () => `MENTORFORGE-${crypto2.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
 var issueCertificate = async (studentId, courseId) => {
   const existing = await prisma.certificate.findUnique({
     where: {
@@ -2576,7 +2649,7 @@ var createCertificatePdf = async (certificateId, userId, role) => {
     }
   });
   return {
-    filename: `skillbridge-certificate-${certificate.certificateNo}.pdf`,
+    filename: `mentorforge-certificate-${certificate.certificateNo}.pdf`,
     buffer
   };
 };
@@ -2594,6 +2667,29 @@ var CertificateService = {
 // src/services/googleCalendar.service.ts
 import { randomUUID as randomUUID2 } from "crypto";
 import { google } from "googleapis";
+
+// src/utils/logger.ts
+var isProduction = process.env.NODE_ENV === "production";
+var formatContext = (context) => context && Object.keys(context).length > 0 ? ` ${JSON.stringify(context)}` : "";
+var logger = {
+  error(message, error, context) {
+    if (isProduction) {
+      return;
+    }
+    const errorMessage = error instanceof Error ? error.message : String(error ?? "");
+    process.stderr.write(`[error] ${message}${formatContext(context)} ${errorMessage}
+`);
+  },
+  info(message, context) {
+    if (isProduction) {
+      return;
+    }
+    process.stdout.write(`[info] ${message}${formatContext(context)}
+`);
+  }
+};
+
+// src/services/googleCalendar.service.ts
 var CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 var SESSION_DURATION_MINUTES = 60;
 var getRedirectUrl = () => {
@@ -2685,14 +2781,14 @@ var createBookingCalendarEvent = async (bookingId) => {
     const endDate = new Date(
       startDate.getTime() + SESSION_DURATION_MINUTES * 60 * 1e3
     );
-    const courseTitle = booking.course?.title ?? "SkillBridge Session";
+    const courseTitle = booking.course?.title ?? "MentorForge Session";
     const event = await calendarClient.calendar.events.insert({
       calendarId: "primary",
       conferenceDataVersion: 1,
       sendUpdates: "all",
       requestBody: {
         summary: `${courseTitle} Session`,
-        description: `SkillBridge tutor booking session.
+        description: `MentorForge tutor booking session.
 
 Student: ${booking.student.name}
 Tutor: ${booking.tutor.user.name}`,
@@ -2738,7 +2834,7 @@ Tutor: ${booking.tutor.user.name}`,
       }
     });
   } catch (error) {
-    console.error("Failed to create Google Calendar event", error);
+    logger.error("Failed to create Google Calendar event", error, { bookingId });
     return null;
   }
 };
@@ -2779,7 +2875,7 @@ var deleteBookingCalendarEvent = async (bookingId) => {
       }
     });
   } catch (error) {
-    console.error("Failed to delete Google Calendar event", error);
+    logger.error("Failed to delete Google Calendar event", error, { bookingId });
     return null;
   }
 };
@@ -3880,7 +3976,7 @@ var approveTutor = async (userId) => {
   await NotificationService.createNotification({
     userId,
     title: "Tutor Request Approved",
-    message: "You are now an approved tutor on SkillBridge",
+    message: "You are now an approved tutor on MentorForge",
     type: "TUTOR_REQUEST_APPROVED",
     link: "/tutor/dashboard",
     entityId: userId
@@ -4815,9 +4911,9 @@ function renderInvoicePdf(payment) {
       160
     ),
     // Header text
-    coloredText2("SkillBridge Invoice", 28, 742, 20, "F2", [1, 1, 1], 34),
+    coloredText2("MentorForge Invoice", 28, 742, 20, "F2", [1, 1, 1], 34),
     coloredText2(
-      "Thank you for learning with SkillBridge.",
+      "Thank you for learning with MentorForge.",
       28,
       722,
       8,
@@ -4874,7 +4970,7 @@ function renderInvoicePdf(payment) {
     coloredText2(payment.status, 502, 110, 9, "F2", [0.13, 0.9, 0.55], 12),
     // Footer
     coloredText2(
-      "This invoice confirms your SkillBridge booking and payment record.",
+      "This invoice confirms your MentorForge booking and payment record.",
       130,
       38,
       8,
@@ -4968,7 +5064,7 @@ var initiatePayment = async (studentId, payload) => {
           unit_amount: toStripeUnitAmount(amount, currency),
           product_data: {
             name: course.title,
-            description: `SkillBridge session with ${tutor.user?.name ?? "Tutor"}`
+            description: `MentorForge session with ${tutor.user?.name ?? "Tutor"}`
           }
         }
       }
@@ -5175,7 +5271,7 @@ var getPaymentForInvoice = async (paymentId, userId, role) => {
 var createInvoicePdf = async (paymentId, userId, role) => {
   const payment = await getPaymentForInvoice(paymentId, userId, role);
   return {
-    filename: `skillbridge-invoice-${payment.transactionId}.pdf`,
+    filename: `mentorforge-invoice-${payment.transactionId}.pdf`,
     buffer: renderInvoicePdf(payment)
   };
 };
@@ -5857,6 +5953,290 @@ var router14 = Router14();
 router14.get("/", SearchController.searchEverything);
 var searchRouter = router14;
 
+// src/modules/contact/contact.routes.ts
+import { Router as Router15 } from "express";
+
+// src/modules/contact/contact.service.ts
+var createMessage = async (payload) => {
+  return prisma.contactMessage.create({
+    data: payload
+  });
+};
+var getMessages = async () => {
+  return prisma.contactMessage.findMany({
+    orderBy: { createdAt: "desc" }
+  });
+};
+var markAsRead3 = async (id) => {
+  return prisma.contactMessage.update({
+    where: { id },
+    data: { isRead: true }
+  });
+};
+var ContactService = {
+  createMessage,
+  getMessages,
+  markAsRead: markAsRead3
+};
+
+// src/modules/contact/contact.validation.ts
+import { z as z9 } from "zod";
+var createContactMessageSchema = z9.object({
+  name: z9.string().trim().min(2, "Name must be at least 2 characters").max(80),
+  email: z9.string().trim().email("Please provide a valid email address").max(120),
+  subject: z9.string().trim().min(4, "Subject must be at least 4 characters").max(120),
+  message: z9.string().trim().min(10, "Message must be at least 10 characters").max(1200)
+});
+
+// src/modules/contact/contact.controller.ts
+var createMessage2 = async (req, res) => {
+  try {
+    const payload = createContactMessageSchema.parse(req.body);
+    const result = await ContactService.createMessage(payload);
+    res.status(201).json({
+      success: true,
+      message: "Message sent successfully",
+      data: result
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to send message";
+    res.status(400).json({ success: false, message });
+  }
+};
+var getMessages2 = async (_req, res) => {
+  try {
+    const result = await ContactService.getMessages();
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load messages";
+    res.status(400).json({ success: false, message });
+  }
+};
+var markAsRead4 = async (req, res) => {
+  try {
+    const result = await ContactService.markAsRead(req.params.id);
+    res.status(200).json({
+      success: true,
+      message: "Message marked as read",
+      data: result
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update message";
+    res.status(400).json({ success: false, message });
+  }
+};
+var ContactController = {
+  createMessage: createMessage2,
+  getMessages: getMessages2,
+  markAsRead: markAsRead4
+};
+
+// src/modules/contact/contact.routes.ts
+var router15 = Router15();
+router15.post("/", ContactController.createMessage);
+router15.get("/", auth_default("ADMIN" /* ADMIN */), ContactController.getMessages);
+router15.patch("/:id/read", auth_default("ADMIN" /* ADMIN */), ContactController.markAsRead);
+var contactRouter = router15;
+
+// src/modules/blogs/blog.routes.ts
+import { Router as Router16 } from "express";
+
+// src/modules/blogs/blog.service.ts
+var blogInclude = {
+  author: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true,
+      role: true
+    }
+  }
+};
+var buildCreateData = (payload, authorId) => ({
+  title: payload.title,
+  excerpt: payload.excerpt,
+  content: payload.content,
+  image: payload.image || null,
+  tags: payload.tags ?? [],
+  isPublished: payload.isPublished ?? true,
+  authorId
+});
+var buildUpdateData = (payload) => ({
+  ...payload.title !== void 0 && { title: payload.title },
+  ...payload.excerpt !== void 0 && { excerpt: payload.excerpt },
+  ...payload.content !== void 0 && { content: payload.content },
+  ...payload.image !== void 0 && { image: payload.image || null },
+  ...payload.tags !== void 0 && { tags: payload.tags },
+  ...payload.isPublished !== void 0 && { isPublished: payload.isPublished }
+});
+var getPublishedBlogs = async () => {
+  return prisma.blogPost.findMany({
+    where: { isPublished: true },
+    include: blogInclude,
+    orderBy: { createdAt: "desc" }
+  });
+};
+var getSinglePublishedBlog = async (id) => {
+  const blog = await prisma.blogPost.findFirst({
+    where: { id, isPublished: true },
+    include: blogInclude
+  });
+  if (!blog) throw new Error("Blog not found");
+  return blog;
+};
+var getManageBlogs = async (userId, role) => {
+  return prisma.blogPost.findMany({
+    where: role === "ADMIN" ? {} : { authorId: userId },
+    include: blogInclude,
+    orderBy: { createdAt: "desc" }
+  });
+};
+var createBlog = async (authorId, payload) => {
+  return prisma.blogPost.create({
+    data: buildCreateData(payload, authorId),
+    include: blogInclude
+  });
+};
+var updateBlog = async (id, userId, role, payload) => {
+  const blog = await prisma.blogPost.findUnique({ where: { id } });
+  if (!blog) throw new Error("Blog not found");
+  if (role !== "ADMIN" && blog.authorId !== userId) {
+    throw new Error("You can only edit your own blog posts");
+  }
+  return prisma.blogPost.update({
+    where: { id },
+    data: buildUpdateData(payload),
+    include: blogInclude
+  });
+};
+var deleteBlog = async (id, userId, role) => {
+  const blog = await prisma.blogPost.findUnique({ where: { id } });
+  if (!blog) throw new Error("Blog not found");
+  if (role !== "ADMIN" && blog.authorId !== userId) {
+    throw new Error("You can only delete your own blog posts");
+  }
+  await prisma.blogPost.delete({ where: { id } });
+  return { message: "Blog deleted successfully" };
+};
+var BlogService = {
+  getPublishedBlogs,
+  getSinglePublishedBlog,
+  getManageBlogs,
+  createBlog,
+  updateBlog,
+  deleteBlog
+};
+
+// src/modules/blogs/blog.validation.ts
+import { z as z10 } from "zod";
+var createBlogSchema = z10.object({
+  title: z10.string().trim().min(5, "Title must be at least 5 characters").max(140),
+  excerpt: z10.string().trim().min(20, "Excerpt must be at least 20 characters").max(260),
+  content: z10.string().trim().min(120, "Content must be at least 120 characters"),
+  image: z10.string().trim().url("Image must be a valid URL").optional().or(z10.literal("")),
+  tags: z10.array(z10.string().trim().min(1).max(30)).max(8).optional(),
+  isPublished: z10.boolean().optional()
+});
+var updateBlogSchema = createBlogSchema.partial();
+
+// src/modules/blogs/blog.controller.ts
+var getPublishedBlogs2 = async (_req, res) => {
+  try {
+    const result = await BlogService.getPublishedBlogs();
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load blogs";
+    res.status(400).json({ success: false, message });
+  }
+};
+var getSinglePublishedBlog2 = async (req, res) => {
+  try {
+    const result = await BlogService.getSinglePublishedBlog(req.params.id);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Blog not found";
+    res.status(message === "Blog not found" ? 404 : 400).json({ success: false, message });
+  }
+};
+var getManageBlogs2 = async (req, res) => {
+  try {
+    if (!req.user?.id || !req.user.role) throw new Error("Unauthorized");
+    const result = await BlogService.getManageBlogs(req.user.id, req.user.role);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load blogs";
+    res.status(400).json({ success: false, message });
+  }
+};
+var createBlog2 = async (req, res) => {
+  try {
+    if (!req.user?.id) throw new Error("Unauthorized");
+    const payload = createBlogSchema.parse(req.body);
+    const result = await BlogService.createBlog(req.user.id, payload);
+    res.status(201).json({
+      success: true,
+      message: "Blog published successfully",
+      data: result
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to publish blog";
+    res.status(400).json({ success: false, message });
+  }
+};
+var updateBlog2 = async (req, res) => {
+  try {
+    if (!req.user?.id || !req.user.role) throw new Error("Unauthorized");
+    const payload = updateBlogSchema.parse(req.body);
+    const result = await BlogService.updateBlog(
+      req.params.id,
+      req.user.id,
+      req.user.role,
+      payload
+    );
+    res.status(200).json({
+      success: true,
+      message: "Blog updated successfully",
+      data: result
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update blog";
+    res.status(400).json({ success: false, message });
+  }
+};
+var deleteBlog2 = async (req, res) => {
+  try {
+    if (!req.user?.id || !req.user.role) throw new Error("Unauthorized");
+    const result = await BlogService.deleteBlog(
+      req.params.id,
+      req.user.id,
+      req.user.role
+    );
+    res.status(200).json({ success: true, ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete blog";
+    res.status(400).json({ success: false, message });
+  }
+};
+var BlogController = {
+  getPublishedBlogs: getPublishedBlogs2,
+  getSinglePublishedBlog: getSinglePublishedBlog2,
+  getManageBlogs: getManageBlogs2,
+  createBlog: createBlog2,
+  updateBlog: updateBlog2,
+  deleteBlog: deleteBlog2
+};
+
+// src/modules/blogs/blog.routes.ts
+var router16 = Router16();
+router16.get("/", BlogController.getPublishedBlogs);
+router16.get("/manage", auth_default("ADMIN" /* ADMIN */, "TUTOR" /* TUTOR */), BlogController.getManageBlogs);
+router16.get("/:id", BlogController.getSinglePublishedBlog);
+router16.post("/", auth_default("ADMIN" /* ADMIN */, "TUTOR" /* TUTOR */), BlogController.createBlog);
+router16.patch("/:id", auth_default("ADMIN" /* ADMIN */, "TUTOR" /* TUTOR */), BlogController.updateBlog);
+router16.delete("/:id", auth_default("ADMIN" /* ADMIN */, "TUTOR" /* TUTOR */), BlogController.deleteBlog);
+var blogRouter = router16;
+
 // src/routes.ts
 app_default.use("/categories", categoryRouter);
 app_default.use("/courses", courseRouter);
@@ -5872,6 +6252,8 @@ app_default.use("/certificates", certificateRouter);
 app_default.use("/notifications", notificationRouter);
 app_default.use("/wishlist", wishlistRouter);
 app_default.use("/search", searchRouter);
+app_default.use("/contact", contactRouter);
+app_default.use("/blogs", blogRouter);
 app_default.use(notFound);
 app_default.use(globalErrorHandler_default);
 
