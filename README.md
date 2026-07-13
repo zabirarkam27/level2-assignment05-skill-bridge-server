@@ -10,8 +10,8 @@ Backend for the Assignment 5 MentorForge full-stack project.
 
 ## Repositories
 
-- [Frontend Repository](https://github.com/zabirarkam27/level2-assignment05-skill-bridge-client)
-- [Backend Repository](https://github.com/zabirarkam27/level2-assignment05-skill-bridge-server)
+- [Frontend Repository](https://github.com/zabirarkam27/level2-assignment05-mentor-forge-client)
+- [Backend Repository](https://github.com/zabirarkam27/level2-assignment05-mentor-forge-server)
 
 ## Demo Credentials
 
